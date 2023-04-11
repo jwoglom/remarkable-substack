@@ -1,4 +1,5 @@
 import subprocess
+import json
 
 class Remarkable:
     def __init__(self):
@@ -71,4 +72,17 @@ class Remarkable:
         if write.returncode != 0:
             raise RuntimeError(f"Couldn't write file: exit code {write.returncode}: {write.stdout} {write.stderr}")
         return True
+
+    def stat(self, remote_path):
+        out = subprocess.run(["rmapi", "-ni", "stat", remote_path], capture_output=True)
+        if out.returncode != 0:
+            raise RuntimeError(f"Couldn't stat file: exit code {out.returncode}: {out.stdout} {out.stderr}")
+        return json.loads(out.stdout)
+
+    def rm(self, remote_path):
+        out = subprocess.run(["rmapi", "-ni", "rm", remote_path], capture_output=True)
+        if out.returncode != 0:
+            raise RuntimeError(f"Couldn't rm file: exit code {out.returncode}: {out.stdout} {out.stderr}")
+        return True
+
 

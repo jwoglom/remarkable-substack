@@ -1,5 +1,6 @@
 import requests
 import pickle
+import os
 
 from playwright.sync_api import sync_playwright
 
@@ -20,6 +21,8 @@ class Substack:
     
     def read_cookies(self):
         if not self.cookie_file:
+            return
+        if not os.path.exists(self.cookie_file):
             return
         with open(self.cookie_file, 'rb') as f:
             self.s.cookies.update(pickle.load(f))
