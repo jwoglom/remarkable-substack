@@ -36,6 +36,8 @@ RUN playwright install
 
 # Create and switch to a new user
 RUN useradd --create-home appuser
+RUN mkdir -p /home/appuser/.cache/
+RUN cp -r /root/.cache/ms-playwright /home/appuser/.cache/
 WORKDIR /home/appuser
 USER appuser
 
