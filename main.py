@@ -117,6 +117,8 @@ def main(args):
         if not posts['more']:
             print('No more posts to return -- stopping')
             break
+        
+        time.sleep(5)
     
     print(f'{fetched_ids=}')
     print(f'{new_ids=}')
@@ -138,6 +140,9 @@ def main(args):
                 'added': time.time()
             }
             to_upload.append(output_file)
+            print(f"Download complete: {article_data[id]}")
+            time.sleep(5)
+
     
     print(f'Uploading: {to_upload}')
     for f in to_upload:
