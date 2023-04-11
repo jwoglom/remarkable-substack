@@ -41,6 +41,7 @@ USER appuser
 COPY . .
 
 RUN playwright install
+RUN playwright install-deps
 
 # Run the application
 ENTRYPOINT ["python3", "-u", "main.py"]
