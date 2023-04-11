@@ -21,6 +21,7 @@ def parse_args():
     a.add_argument('--remarkable-auth-token', help='For initial authentication with reMarkable: device token')
     a.add_argument('--substack-login-url', help='For initial authentication with reMarkable: device token')
     a.add_argument('--config-folder', help='Configuration folder for remarkable-substack')
+    a.add_argument('--tmp-folder', help='Temporary storage folder for remarkable-substack')
     return a.parse_args()
 
 def parse_filename(fn):
@@ -124,6 +125,8 @@ def main(args):
     print(f'{new_ids=}')
 
     dir = tempfile.gettempdir()
+    if args.tmp_folder:
+        dir = args.tmp_folder
     to_upload = []
     for post in all_posts:
         id = str(post['id'])

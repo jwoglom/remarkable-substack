@@ -63,8 +63,10 @@ class Substack:
             if not parsed_url.netloc.endswith('.substack.com'):
                 page.goto('https://substack.com')
                 page.wait_for_load_state()
-            page.emulate_media(media="print")
             page.goto(url)
+            page.wait_for_load_state()
+            page.locator('.signed-in').wait_for()
+            page.emulate_media(media="print")
             page.pdf(path=output_file)
             browser.close()
 
@@ -77,5 +79,5 @@ if __name__ == '__main__':
     args = a.parse_args()
 
     cookie_file = os.path.join(args.config_folder, '.substack-cookie')
-    ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
+    ss = Substack(cookie_file=cookie_file)
     ss.download_pdf(args.download_url, '/tmp/test.pdf')
