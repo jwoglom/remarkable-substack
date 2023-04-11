@@ -1,6 +1,7 @@
 import requests
 import pickle
 import os
+import urllib.parse
 
 from playwright.sync_api import sync_playwright
 
@@ -52,13 +53,29 @@ class Substack:
         return [{'name': k.name, 'value': k.value, 'port': k.port, 'domain': k.domain, 'path': k.path, 'secure': k.secure, 'expires': k.expires} for k in self.s.cookies]
 
     def download_pdf(self, url, output_file):
+        parsed_url = urllib.parse.urlparse(url)
         with sync_playwright() as p:
             chromium = p.chromium
             browser = chromium.launch()
             context = browser.new_context()
             context.add_cookies(self.playwright_cookies())
             page = context.new_page()
+            if not parsed_url.netloc.endswith('.substack.com'):
+                page.goto('https://substack.com')
+                page.wait_for_load_state()
             page.emulate_media(media="print")
             page.goto(url)
             page.pdf(path=output_file)
             browser.close()
+
+if __name__ == '__main__':
+    import argparse
+
+    a = argparse.ArgumentParser(description="Writes recent Substack articles to reMarkable cloud")
+    a.add_argument('--download-url', help='URL to download PDF for')
+    a.add_argument('--config-folder', help='Configuration folder for remarkable-substack')
+    args = a.parse_args()
+
+    cookie_file = os.path.join(args.config_folder, '.substack-cookie')
+    ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
+    ss.download_pdf(args.download_url, '/tmp/test.pdf')
