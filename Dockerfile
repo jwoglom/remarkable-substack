@@ -24,15 +24,15 @@ WORKDIR /base
 COPY Pipfile .
 COPY Pipfile.lock .
 RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy
-RUN playwright install
-RUN sudo playwright install-deps
-
 FROM base AS runtime
 
 # Copy virtualenv from python-deps stage
 COPY --from=python-deps /base/.venv /base/.venv
 COPY --from=python-deps /rmapi /base/.venv/bin/rmapi
 ENV PATH="/base/.venv/bin:$PATH"
+
+RUN playwright install
+RUN sudo playwright install-deps
 
 # Create and switch to a new user
 RUN useradd --create-home appuser
