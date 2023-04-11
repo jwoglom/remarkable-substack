@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.32.0-focal as base
+FROM python:3.10-slim as base
 
 # The following is adapted from:
 # https://sourcery.ai/blog/python-docker/
@@ -12,9 +12,8 @@ ENV PYTHONFAULTHANDLER 1
 FROM base AS python-deps
 
 # Install pipenv and compilation dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends gcc wget software-properties-common
-RUN add-apt-repository ppa:deadsnakes/ppa -y && apt-get -y --no-install-recommends install python3.10
-RUN pip3.10 install pipenv
+RUN apt-get update && apt-get install -y --no-install-recommends gcc wget software-properties-common sudo
+RUN pip install pipenv
 RUN wget https://github.com/juruen/rmapi/releases/download/v0.0.25/rmapi-linuxx86-64.tar.gz
 RUN tar xvzf rmapi-linuxx86-64.tar.gz
 
@@ -26,6 +25,7 @@ COPY Pipfile .
 COPY Pipfile.lock .
 RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy
 RUN playwright install
+RUN sudo playwright install-deps
 
 FROM base AS runtime
 
@@ -43,4 +43,4 @@ USER appuser
 COPY . .
 
 # Run the application
-ENTRYPOINT ["python3.10", "-u", "main.py"]
+ENTRYPOINT ["python3", "-u", "main.py"]
