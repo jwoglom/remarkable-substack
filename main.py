@@ -43,12 +43,21 @@ def main(args):
         rm.mkdir(args.folder)
         ls = []
     
+    if not args.config_folder:
+        args.config_folder = os.path.join(os.path.expanduser('~'), '.config', 'remarkable-substack')
+        if not os.path.exists(args.config_folder):
+            os.makedirs(args.config_folder)
+        print(f'Set --config-folder to {args.config_folder}')
+    
     print(f'Existing files in {args.folder}: {ls}')
     
     db_file = os.path.join(args.config_folder, 'db_file.json')
+    already_downloaded_ids = set()
     article_data = {}
     if os.path.exists(db_file):
         article_data = json.loads(open(db_file, 'r').read())
+    
+    already_downloaded_ids = list(article_data.keys())
 
     existing_ids = set()
     files_to_delete = set()
@@ -95,10 +104,13 @@ def main(args):
             fetched_ids.add(id)
             if id not in existing_ids:
                 if len(new_ids) + len(existing_ids) < args.max_save_count:
-                    print(f'Found new article: {id}: {to_filename(post)}')
-                    new_ids.add(id)
+                    if id not in already_downloaded_ids:
+                        print(f'Found new article: {id}: {to_filename(post)}')
+                        new_ids.add(id)
+                    else:
+                        print(f'Article already read: {id}: {to_filename(post)}')
             else:
-                print(f'Already read article: {id}: {to_filename(post)}')
+                print(f'Article already on remarkable: {id}: {to_filename(post)}')
             after = post['post_date']
             all_posts.append(post)
 
