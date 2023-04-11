@@ -1,4 +1,4 @@
-FROM python:3.10-slim as base
+FROM mcr.microsoft.com/playwright:v1.32.0-focal as base
 
 # The following is adapted from:
 # https://sourcery.ai/blog/python-docker/
@@ -24,6 +24,7 @@ WORKDIR /base
 COPY Pipfile .
 COPY Pipfile.lock .
 RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy
+RUN playwright install
 
 FROM base AS runtime
 
@@ -39,9 +40,6 @@ USER appuser
 
 # Install application into container
 COPY . .
-
-RUN playwright install
-RUN playwright install-deps
 
 # Run the application
 ENTRYPOINT ["python3", "-u", "main.py"]
