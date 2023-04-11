@@ -134,6 +134,7 @@ def main(args):
                 'id': id,
                 'num_pages': num_pages,
                 'canonical_url': post['canonical_url'],
+                'filename': to_filename(post),
                 'added': time.time()
             }
             to_upload.append(output_file)
@@ -145,8 +146,6 @@ def main(args):
 
     print('Upload complete')
 
-    with open(db_file, 'w') as f:
-        f.write(json.dumps(article_data))
 
     if args.delete_already_read and len(files_to_delete) > 0:
         print('Deleting old files')
@@ -157,6 +156,13 @@ def main(args):
             assert '/..' not in path
             assert len(path) > 2 + len(args.folder)
             rm.rm(path)
+
+            id = parse_filename(path)
+            if id and id in article_data:
+                article_data[id]['deleted'] = time.time()
+    
+    with open(db_file, 'w') as f:
+        f.write(json.dumps(article_data))
 
 def get_num_pages(path):
     with open(path, 'rb') as f:
