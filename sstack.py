@@ -1,6 +1,7 @@
 import requests
 import pickle
-import pdfkit
+
+from playwright.sync_api import sync_playwright
 
 class Substack:
     def __init__(self, cookie_file=None, login_url=None):
@@ -45,8 +46,13 @@ class Substack:
         return r.json()
 
     def download_pdf(self, url, output_file, **kwargs):
-        pdfkit.from_url(url, output_file, options={
-            'cookie': [(k.name, k.value) for k in self.s.cookies],
-            **kwargs
-        })
-
+        with sync_playwright() as p:
+            webkit = p.webkit
+            browser = webkit.launch()
+            context = browser.new_context()
+            context.add_cookies([(k.name, k.value) for k in self.s.cookies])
+            page = context.new_page()
+            page.emulate_media(media="print")
+            page.goto(url)
+            page.pdf(path=output_file)
+            browser.close()

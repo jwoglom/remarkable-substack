@@ -7,7 +7,7 @@ name = "pypi"
 rmapy = "*"
 requests = "*"
 pypdf = "*"
-pdfkit = "*"
+pytest-playwright = "*"
 
 [dev-packages]
 

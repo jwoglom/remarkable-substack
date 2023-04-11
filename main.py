@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 import argparse
-import subprocess
-import collections
 import re
 import tempfile
 import os
+import time
 
 from remarkable import Remarkable
 from sstack import Substack
@@ -93,6 +92,7 @@ def main(args):
             to_upload.append(output_file)
     
     print(to_upload)
+    time.sleep(3600)
 
 
 if __name__ == '__main__':

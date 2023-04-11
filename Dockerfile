@@ -17,10 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc wget
 RUN wget https://github.com/juruen/rmapi/releases/download/v0.0.25/rmapi-linuxx86-64.tar.gz
 RUN tar xvzf rmapi-linuxx86-64.tar.gz
 
-RUN apt-get install -y build-essential xorg libssl-dev libxrender-dev wget gdebi
-RUN wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.bionic_amd64.deb
-RUN gdebi --n wkhtmltox_0.12.6-1.bionic_amd64.deb
-
 RUN mkdir -p /base
 WORKDIR /base
 
@@ -43,6 +39,8 @@ USER appuser
 
 # Install application into container
 COPY . .
+
+RUN playwright install
 
 # Run the application
 ENTRYPOINT ["python3", "-u", "main.py"]
