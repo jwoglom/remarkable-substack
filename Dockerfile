@@ -31,8 +31,8 @@ COPY --from=python-deps /base/.venv /base/.venv
 COPY --from=python-deps /rmapi /base/.venv/bin/rmapi
 ENV PATH="/base/.venv/bin:$PATH"
 
-RUN playwright install
 RUN playwright install-deps
+RUN playwright install
 
 # Create and switch to a new user
 RUN useradd --create-home appuser
