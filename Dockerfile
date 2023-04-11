@@ -12,7 +12,7 @@ ENV PYTHONFAULTHANDLER 1
 FROM base AS python-deps
 
 # Install pipenv and compilation dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends gcc wget software-properties-common sudo
+RUN apt-get update && apt-get install -y --no-install-recommends gcc wget software-properties-common
 RUN pip install pipenv
 RUN wget https://github.com/juruen/rmapi/releases/download/v0.0.25/rmapi-linuxx86-64.tar.gz
 RUN tar xvzf rmapi-linuxx86-64.tar.gz
@@ -32,7 +32,7 @@ COPY --from=python-deps /rmapi /base/.venv/bin/rmapi
 ENV PATH="/base/.venv/bin:$PATH"
 
 RUN playwright install
-RUN sudo playwright install-deps
+RUN playwright install-deps
 
 # Create and switch to a new user
 RUN useradd --create-home appuser
