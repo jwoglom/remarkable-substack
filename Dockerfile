@@ -12,8 +12,9 @@ ENV PYTHONFAULTHANDLER 1
 FROM base AS python-deps
 
 # Install pipenv and compilation dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends gcc wget software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa -y && apt-get install python3.10
 RUN pip install pipenv
-RUN apt-get update && apt-get install -y --no-install-recommends gcc wget
 RUN wget https://github.com/juruen/rmapi/releases/download/v0.0.25/rmapi-linuxx86-64.tar.gz
 RUN tar xvzf rmapi-linuxx86-64.tar.gz
 
