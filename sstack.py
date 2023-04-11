@@ -45,12 +45,15 @@ class Substack:
             raise RuntimeError(f'{r.status_code}: {r.text}')
         return r.json()
 
-    def download_pdf(self, url, output_file, **kwargs):
+    def playwright_cookies(self):
+        return [{'name': k.name, 'value': k.value, 'port': k.port, 'domain': k.domain, 'path': k.path, 'secure': k.secure, 'expires': k.expires} for k in self.s.cookies]
+
+    def download_pdf(self, url, output_file):
         with sync_playwright() as p:
-            webkit = p.webkit
-            browser = webkit.launch()
+            chromium = p.chromium
+            browser = chromium.launch()
             context = browser.new_context()
-            context.add_cookies([(k.name, k.value) for k in self.s.cookies])
+            context.add_cookies(self.playwright_cookies())
             page = context.new_page()
             page.emulate_media(media="print")
             page.goto(url)

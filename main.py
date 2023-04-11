@@ -72,15 +72,6 @@ def main(args):
             print('No more posts to return -- stopping')
             break
 
-    pdf_options = {
-        'page-size': 'Letter',
-        'margin-top': '0.75in',
-        'margin-right': '0.75in',
-        'margin-bottom': '0.75in',
-        'margin-left': '0.75in',
-        'encoding': "UTF-8",
-    }
-
     dir = tempfile.gettempdir()
     to_upload = []
     for post in posts['posts']:
@@ -88,11 +79,10 @@ def main(args):
         if id in new_ids:
             output_file = os.path.join(dir, to_filename(post))
             print(f"Downloading {post['canonical_url']} to pdf {output_file}")
-            ss.download_pdf(post['canonical_url'], output_file, **pdf_options)
+            ss.download_pdf(post['canonical_url'], output_file)
             to_upload.append(output_file)
     
     print(to_upload)
-    time.sleep(3600)
 
 
 if __name__ == '__main__':
