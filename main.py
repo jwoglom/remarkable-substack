@@ -15,8 +15,9 @@ from datetime import datetime
 def parse_args():
     a = argparse.ArgumentParser(description="Writes recent Substack articles to reMarkable cloud")
     a.add_argument('--max-save-count', type=int, default=20, help='Maximum number of articles to save on device')
-    a.add_argument('--max-fetch-count', type=int, default=40, help='Maximum number of articles to fetch from Substack')
+    a.add_argument('--max-fetch-count', type=int, default=20, help='Maximum number of articles to fetch from Substack')
     a.add_argument('--delete-already-read', action='store_true', help='Delete articles in reMarkable cloud which are already read')
+    a.add_argument('--delete-unread-after-hours', type=int, default=48, help='If an article has not been opened for this many hours on the device and there are new articles to add, will delete. Set to -1 to disable, or 0 to always replace old articles.')
     a.add_argument('--folder', default='Substack', help='Folder title to write to')
     a.add_argument('--remarkable-auth-token', help='For initial authentication with reMarkable: device token')
     a.add_argument('--substack-login-url', help='For initial authentication with reMarkable: device token')
@@ -62,19 +63,29 @@ def main(args):
 
     existing_ids = set()
     files_to_delete = set()
+    delete_if_needed = {}
+    now_ts = time.time()
     for file in ls:
         id = parse_filename(file)
         if id:
             existing_ids.add(id)
-            if args.delete_already_read and id in article_data:
+            if id in article_data:
+                added_ts = article_data.get(id)['added']
                 num_pages = article_data.get(id)['num_pages']
                 stat = rm.stat(f'{args.folder}/{file}')
                 print(f"Check: {file} is on page {1+stat['CurrentPage']} of {num_pages} total")
-                if 1 + stat['CurrentPage'] == num_pages:
-                    print(f"Will delete {file} since already read")
-                    files_to_delete.add(f'{args.folder}/{file}')
+                if args.delete_already_read:
+                    if 1 + stat['CurrentPage'] == num_pages:
+                        print(f"Will delete {file} since already read")
+                        files_to_delete.add(f'{args.folder}/{file}')
+                if stat['CurrentPage'] == 0:
+                    unread_hrs = (now_ts - added_ts) / 60 / 60
+                    if args.delete_unread_after_hours >= 0 and unread_hrs >= args.delete_unread_after_hours:
+                        print(f"Article not opened after {unread_hrs} hrs, will delete if needed: {file}")
+                        delete_if_needed[id] = f'{args.folder}/{file}'
     
     print(f'{existing_ids=}')
+    print(f'{delete_if_needed.keys()=}')
     if args.delete_already_read:
         print(f'{files_to_delete=}')
 
@@ -94,9 +105,10 @@ def main(args):
 
     new_ids = set()
     fetched_ids = set()
+    fetched_old_ids = set()
     all_posts = []
     after = None
-    while len(new_ids) + len(existing_ids) < args.max_save_count and len(fetched_ids) < args.max_fetch_count:
+    while len(fetched_ids) < args.max_fetch_count:
         print(f'get_posts(after={after})')
         posts = ss.get_posts(limit=20, after=None)
 
@@ -104,13 +116,25 @@ def main(args):
             id = str(post['id'])
             fetched_ids.add(id)
             if id not in existing_ids:
-                if len(new_ids) + len(existing_ids) < args.max_save_count:
-                    if id not in already_downloaded_ids:
+                if id not in already_downloaded_ids:
+                    if len(new_ids) + len(existing_ids) < args.max_save_count:
+                        print(f'Found new article: {id}: {to_filename(post)}')
+                        new_ids.add(id)
+                    elif len(delete_if_needed) > 0 and args.delete_unread_after_hours >= 0:
+                        delete_id = list(sorted(list(delete_if_needed.keys())))[0]
+                        print(f'Article in delete_if_needed dropped: {delete_id} {delete_if_needed[delete_id]}')
+                        files_to_delete.add(delete_if_needed[delete_id])
+                        del delete_if_needed[delete_id]
+
                         print(f'Found new article: {id}: {to_filename(post)}')
                         new_ids.add(id)
                     else:
-                        print(f'Article already read: {id}: {to_filename(post)}')
+                        print(f'Found but not downloading new article (no space): {id}: {to_filename(post)}')
+                else:
+                    print(f'Article already read: {id}: {to_filename(post)}')
+                
             else:
+                fetched_old_ids.add(id)
                 print(f'Article already on remarkable: {id}: {to_filename(post)}')
             after = post['post_date']
             all_posts.append(post)
@@ -122,6 +146,7 @@ def main(args):
         time.sleep(5)
     
     print(f'{fetched_ids=}')
+    print(f'{fetched_old_ids=}')
     print(f'{new_ids=}')
 
     dir = tempfile.gettempdir()
@@ -140,7 +165,7 @@ def main(args):
                 'num_pages': num_pages,
                 'canonical_url': post['canonical_url'],
                 'filename': to_filename(post),
-                'added': time.time()
+                'added': now_ts
             }
             to_upload.append(output_file)
             print(f"Download complete: {article_data[id]}")
@@ -167,7 +192,7 @@ def main(args):
 
             id = parse_filename(path)
             if id and id in article_data:
-                article_data[id]['deleted'] = time.time()
+                article_data[id]['deleted'] = now_ts
     
     with open(db_file, 'w') as f:
         f.write(json.dumps(article_data))
