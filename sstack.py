@@ -52,7 +52,18 @@ class Substack:
     def playwright_cookies(self):
         return [{'name': k.name, 'value': k.value, 'port': k.port, 'domain': k.domain, 'path': k.path, 'secure': k.secure, 'expires': k.expires} for k in self.s.cookies]
 
-    def download_pdf(self, url, output_file, headless=True):
+
+    def download_pdf(self, *args, **kwargs):
+        try:
+            ret = self._download_pdf(*args, **kwargs)
+            if ret:
+                return ret
+        except Exception as e:
+            print('download_pdf initial call swallowed exception', e)
+        print('Retrying download_pdf() once')
+        return self._download_pdf(*args, **kwargs)
+
+    def _download_pdf(self, url, output_file, headless=True):
         print('Opening playwright:', url)
         parsed_url = urllib.parse.urlparse(url)
         with sync_playwright() as p:
@@ -67,13 +78,14 @@ class Substack:
             page.goto(url)
             page.wait_for_load_state()
             try:
-                page.locator('.signed-in').wait_for()
+                page.locator('.signed-in').wait_for(timeout=30)
             except Exception as e:
                 print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
                 return None
             page.emulate_media(media="print")
             page.pdf(path=output_file)
             browser.close()
+        return True
 
 if __name__ == '__main__':
     import argparse
