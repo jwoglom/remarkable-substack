@@ -52,11 +52,12 @@ class Substack:
     def playwright_cookies(self):
         return [{'name': k.name, 'value': k.value, 'port': k.port, 'domain': k.domain, 'path': k.path, 'secure': k.secure, 'expires': k.expires} for k in self.s.cookies]
 
-    def download_pdf(self, url, output_file):
+    def download_pdf(self, url, output_file, headless=True):
+        print('Opening playwright:', url)
         parsed_url = urllib.parse.urlparse(url)
         with sync_playwright() as p:
             chromium = p.chromium
-            browser = chromium.launch()
+            browser = chromium.launch(headless=headless)
             context = browser.new_context()
             context.add_cookies(self.playwright_cookies())
             page = context.new_page()
@@ -80,4 +81,4 @@ if __name__ == '__main__':
 
     cookie_file = os.path.join(args.config_folder, '.substack-cookie')
     ss = Substack(cookie_file=cookie_file)
-    ss.download_pdf(args.download_url, '/tmp/test.pdf')
+    ss.download_pdf(args.download_url, '/tmp/test.pdf', headless=False)
