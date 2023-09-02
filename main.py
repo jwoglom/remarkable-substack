@@ -159,6 +159,10 @@ def main(args):
             output_file = os.path.join(dir, to_filename(post))
             print(f"Downloading {post['canonical_url']} to pdf {output_file}")
             ss.download_pdf(post['canonical_url'], output_file)
+            if not os.path.exists(output_file):
+                print(f"Unable to download {post['canonical_url']} to {output_file}. Skipping")
+                time.sleep(5)
+                continue
             num_pages = get_num_pages(output_file)
             article_data[id] = {
                 'id': id,

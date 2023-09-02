@@ -66,7 +66,11 @@ class Substack:
                 page.wait_for_load_state()
             page.goto(url)
             page.wait_for_load_state()
-            page.locator('.signed-in').wait_for()
+            try:
+                page.locator('.signed-in').wait_for()
+            except Exception as e:
+                print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
+                return None
             page.emulate_media(media="print")
             page.pdf(path=output_file)
             browser.close()
