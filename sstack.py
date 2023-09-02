@@ -78,7 +78,7 @@ class Substack:
             page.goto(url)
             page.wait_for_load_state()
             try:
-                page.locator('.signed-in').wait_for(timeout=30)
+                page.locator('.signed-in').wait_for(timeout=45000)
             except Exception as e:
                 print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
                 return None
