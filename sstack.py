@@ -54,13 +54,14 @@ class Substack:
 
 
     def download_pdf(self, *args, **kwargs):
-        try:
-            ret = self._download_pdf(*args, **kwargs)
-            if ret:
-                return ret
-        except Exception as e:
-            print('download_pdf initial call swallowed exception', e)
-        print('Retrying download_pdf() once')
+        for i in range(2):
+            try:
+                ret = self._download_pdf(*args, **kwargs)
+                if ret:
+                    return ret
+            except Exception as e:
+                print('download_pdf call', i+1, 'swallowed exception', e)
+            print('Retrying download_pdf()')
         return self._download_pdf(*args, **kwargs)
 
     def _download_pdf(self, url, output_file, headless=True):
@@ -75,13 +76,23 @@ class Substack:
             if not parsed_url.netloc.endswith('.substack.com'):
                 page.goto('https://substack.com')
                 page.wait_for_load_state()
+                page.wait_for_timeout(5000)
             page.goto(url)
             page.wait_for_load_state()
             try:
-                page.locator('.signed-in').wait_for(timeout=45000)
+                page.locator('.signed-in').wait_for(timeout=20000)
             except Exception as e:
-                print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
-                return None
+                print('try 1: unable to ensure logged-in to', url, ' - error:', e)
+                page.locator('.sign-in-link').click()
+                page.wait_for_load_state()
+                page.wait_for_timeout(5000)
+                page.goto(url)
+                try:
+                    page.locator('.signed-in').wait_for(timeout=20000)
+                except Exception as e:
+                    print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
+                    return None
+
             page.emulate_media(media="print")
             page.pdf(path=output_file)
             browser.close()
