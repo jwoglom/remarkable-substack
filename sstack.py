@@ -162,7 +162,7 @@ if __name__ == '__main__':
 
         for item in archive:
             date = item['post_date'].split('T')[0]
-            title = item['title']
+            title = item['title'].replace('/','-')
             path = os.path.join(root, f'{date} - {title}.pdf')
             if os.path.exists(path):
                 print(f'File {path=} already exists, skipping')
