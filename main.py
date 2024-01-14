@@ -20,7 +20,7 @@ def parse_args():
     a.add_argument('--delete-unread-after-hours', type=int, default=48, help='If an article has not been opened for this many hours on the device and there are new articles to add, will delete. Set to -1 to disable, or 0 to always replace old articles.')
     a.add_argument('--folder', default='Substack', help='Folder title to write to')
     a.add_argument('--remarkable-auth-token', help='For initial authentication with reMarkable: device token')
-    a.add_argument('--substack-login-url', help='For initial authentication with reMarkable: device token')
+    a.add_argument('--substack-login-url', help='For initial authentication with Substack: the URL from the email received from Substack when entering your email on the login page')
     a.add_argument('--config-folder', help='Configuration folder for remarkable-substack')
     a.add_argument('--tmp-folder', help='Temporary storage folder for remarkable-substack')
     return a.parse_args()
