@@ -3,6 +3,7 @@ import pickle
 import os
 import urllib.parse
 import json
+import time
 
 from playwright.sync_api import sync_playwright
 
@@ -49,6 +50,8 @@ class Substack:
         if offset:
             url += f'&offset={offset}'
         r = self.s.get(url)
+        if r.status_code == 429:
+            time.sleep(5)
         if r.status_code//100 != 2:
             raise RuntimeError(f'{r.status_code}: {r.text}')
         return r.json()
@@ -66,6 +69,7 @@ class Substack:
                 offset += 12
             else:
                 offset = 12
+            time.sleep(1)
 
     def get_subscriptions(self):
         r = self.s.get(f'https://substack.com/api/v1/subscriptions')
