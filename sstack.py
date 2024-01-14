@@ -132,6 +132,7 @@ if __name__ == '__main__':
     a.add_argument('--config-folder', help='Configuration folder for remarkable-substack', default='')
     a.add_argument('--substack-login-url', help='For initial authentication with Substack: the URL from the email received from Substack when entering your email on the login page')
     a.add_argument('--non-headless', help='Debug by not having headless browser', action='store_true')
+    a.add_argument('--output-folder', help='Output folder', default='out')
     args = a.parse_args()
 
     if not args.config_folder:
@@ -139,22 +140,19 @@ if __name__ == '__main__':
         if not os.path.exists(args.config_folder):
             os.makedirs(args.config_folder)
         print(f'Set --config-folder to {args.config_folder}')
+
     cookie_file = os.path.join(args.config_folder, '.substack-cookie')
     ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
     if args.download_url:
         ss.download_pdf(args.download_url, '/tmp/test.pdf', headless=not args.non_headless)
 
     if args.download_domain:
-        if not os.path.exists(f'out/{args.download_domain}.json'):
-            archive = ss.get_full_archive(args.download_domain)
-            with open(f'out/{args.download_domain}.json','w') as f:
-                f.write(json.dumps(archive, indent=4))
-        else:
-            with open(f'out/{args.download_domain}.json','r') as f:
-                archive = json.loads(f.read())
+        archive = ss.get_full_archive(args.download_domain)
+        with open(f'{args.output_folder}/{args.download_domain}.json','w') as f:
+            f.write(json.dumps(archive, indent=4))
 
         print(f'{len(archive)=}')
-        root = f'out/{args.download_domain}'
+        root = f'{args.output_folder}/{args.download_domain}'
         if not os.path.exists(root):
             os.makedirs(root, exist_ok=True)
 
