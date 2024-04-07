@@ -108,16 +108,16 @@ class Substack:
             page.goto(url)
             page.wait_for_load_state()
             try:
-                page.locator('.signed-in').wait_for(timeout=20000)
+                page.locator('a[href*="sign-out"]').wait_for(timeout=20000)
             except Exception as e:
                 print('try 1: unable to ensure logged-in to', url, ' - error:', e)
-                page.locator('.sign-in-link').click()
+                page.locator('a[href*="sign-in"]').click()
                 page.wait_for_load_state()
                 page.wait_for_timeout(5000)
                 page.goto(url)
                 page.wait_for_load_state()
                 try:
-                    page.locator('.signed-in').wait_for(timeout=20000)
+                    page.locator('a[href*="sign-out"]').wait_for(timeout=20000)
                 except Exception as e:
                     print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
                     return None
