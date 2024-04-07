@@ -108,16 +108,16 @@ class Substack:
             page.goto(url)
             page.wait_for_load_state()
             try:
-                page.locator('a[href*="sign-out"]').wait_for(timeout=20000)
+                page.locator('svg.lucide-bell').wait_for(timeout=20000)
             except Exception as e:
                 print('try 1: unable to ensure logged-in to', url, ' - error:', e)
-                page.locator('a[href*="sign-in"]').click()
+                page.locator('a[href*="sign-in"]').first.click()
                 page.wait_for_load_state()
                 page.wait_for_timeout(5000)
                 page.goto(url)
                 page.wait_for_load_state()
                 try:
-                    page.locator('a[href*="sign-out"]').wait_for(timeout=20000)
+                    page.locator('svg.lucide-bell').wait_for(timeout=20000)
                 except Exception as e:
                     print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
                     return None
@@ -148,7 +148,7 @@ if __name__ == '__main__':
     cookie_file = os.path.join(args.config_folder, '.substack-cookie')
     ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
     if args.download_url:
-        ss.download_pdf(args.download_url, '/tmp/test.pdf', headless=not args.non_headless)
+        ss.download_pdf(args.download_url, f'{args.output_folder}/article.pdf', headless=not args.non_headless)
 
     if args.download_domain:
         archive = ss.get_full_archive(args.download_domain)
