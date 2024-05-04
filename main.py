@@ -6,6 +6,7 @@ import os
 import json
 import pypdf
 import time
+import subprocess
 
 from remarkable import Remarkable
 from sstack import Substack
@@ -23,6 +24,7 @@ def parse_args():
     a.add_argument('--substack-login-url', help='For initial authentication with Substack: the URL from the email received from Substack when entering your email on the login page')
     a.add_argument('--config-folder', help='Configuration folder for remarkable-substack')
     a.add_argument('--tmp-folder', help='Temporary storage folder for remarkable-substack')
+    a.add_argument('--relogin-command', help='Command to run when relogin is required to substack (e.g. send a notification)', default=None)
     return a.parse_args()
 
 def parse_filename(fn):
@@ -35,8 +37,13 @@ def parse_filename(fn):
 
 
 def main(args):
-    rm = Remarkable()
-    rm.auth_if_needed(args.remarkable_auth_token)
+    try:
+        rm = Remarkable()
+        rm.auth_if_needed(args.remarkable_auth_token)
+    except Exception as e:
+        if args.relogin_command:
+            subprocess.run(['/bin/bash', '-c', args.relogin_command])
+        raise e
 
     ls = []
     try:
@@ -91,8 +98,13 @@ def main(args):
 
 
     cookie_file = os.path.join(args.config_folder, '.substack-cookie')
-    ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
-    subs = ss.get_subscriptions()
+    try:
+        ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
+        subs = ss.get_subscriptions()
+    except Exception as e:
+        if args.relogin_command:
+            subprocess.run(['/bin/bash', '-c', args.relogin_command])
+        raise e
     publications = {}
     for pub in subs['publications']:
         publications[pub['id']] = pub['name']
