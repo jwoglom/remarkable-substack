@@ -13,8 +13,10 @@ class Substack:
         self.s = requests.Session()
         self.cookie_file = cookie_file
         if login_url:
+            print('Using Substack login_url')
             self.login(login_url)
         else:
+            print(f'Using existing substack cookie file {cookie_file=}')
             self.read_cookies()
     
     def write_cookies(self):
@@ -33,7 +35,7 @@ class Substack:
 
     
     def login(self, login_url):
-        r = self.s.get(login_url)
+        r = self.s.get(login_url, allow_redirects=True)
         print(r.status_code, r)
         self.write_cookies()
     
@@ -102,19 +104,24 @@ class Substack:
             context = browser.new_context()
             context.add_cookies(self.playwright_cookies())
             page = context.new_page()
-            if not parsed_url.netloc.endswith('.substack.com'):
-                page.goto('https://substack.com')
-                page.wait_for_load_state()
-                page.wait_for_timeout(5000)
-                try:
-                    page.locator('svg.lucide-bell').wait_for(timeout=20000)
-                except Exception as e:
-                    print('Unable to ensure logged-in on substack homepage, you need to relogin', e)
-                    if relogin_command:
-                        subprocess.run(['/bin/bash', '-c', relogin_command])
-                    return None
+
+            print('Opening https://substack.com')
+            page.goto('https://substack.com')
+            page.wait_for_load_state()
+            page.wait_for_timeout(5000)
+            print('Opening https://substack.com')
+            try:
+                page.locator('svg.lucide-plus').wait_for(timeout=20000)
+            except Exception as e:
+                print('Unable to ensure logged-in on substack homepage (no lucide-plus icon), you need to relogin', e)
+                if relogin_command:
+                    subprocess.run(['/bin/bash', '-c', relogin_command])
+                return None
+            print('Found logged-in session on substack.com')
+
             page.goto(url)
             page.wait_for_load_state()
+            print('Ensuring logged-in session carries to article details')
             try:
                 page.locator('svg.lucide-bell').wait_for(timeout=20000)
             except Exception as e:
@@ -130,6 +137,23 @@ class Substack:
                     print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
                     return None
 
+            page.wait_for_timeout(1000)
+            print("Starting scroll...")
+            lastScrollY = -1000
+            curScrollY = page.evaluate('(document.scrollingElement || document.body).scrollTop')
+            scrolled = 0
+            while curScrollY > lastScrollY:
+                N = 250
+                page.mouse.wheel(0, N)
+                scrolled += N
+                page.wait_for_timeout(50)
+                lastScrollY = curScrollY
+                curScrollY = page.evaluate('(document.scrollingElement || document.body).scrollTop')
+
+            print("Resetting to top")
+            page.mouse.wheel(0, -1 * scrolled)
+            page.wait_for_timeout(1000)
+            print("Done scrolling")
             page.emulate_media(media="print")
             page.pdf(path=output_file)
             browser.close()
@@ -157,7 +181,10 @@ if __name__ == '__main__':
     cookie_file = os.path.join(args.config_folder, '.substack-cookie')
     ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
     if args.download_url:
-        ss.download_pdf(args.download_url, f'{args.output_folder}/article.pdf', headless=not args.non_headless)
+        path = f'{args.output_folder}/article.pdf'
+        print(f'Downloading {args.download_url=} {path=}')
+        ret = ss.download_pdf(args.download_url, path, headless=not args.non_headless)
+        print(f'Result: {ret}')
 
     if args.download_domain:
         archive = ss.get_full_archive(args.download_domain)
@@ -177,5 +204,6 @@ if __name__ == '__main__':
                 print(f'File {path=} already exists, skipping')
                 continue
             print(f'Downloading {date=} {title=} {path=}')
-            ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless, relogin_command=args.relogin_command)
+            ret = ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless, relogin_command=args.relogin_command)
+            print(f'Result: {ret}')
 
