@@ -4,6 +4,7 @@ import os
 import urllib.parse
 import json
 import time
+import subprocess
 
 from playwright.sync_api import sync_playwright
 
@@ -92,7 +93,7 @@ class Substack:
             print('Retrying download_pdf()')
         return self._download_pdf(*args, **kwargs)
 
-    def _download_pdf(self, url, output_file, headless=True):
+    def _download_pdf(self, url, output_file, headless=True, relogin_command=None):
         print('Opening playwright:', url)
         parsed_url = urllib.parse.urlparse(url)
         with sync_playwright() as p:
@@ -105,6 +106,13 @@ class Substack:
                 page.goto('https://substack.com')
                 page.wait_for_load_state()
                 page.wait_for_timeout(5000)
+                try:
+                    page.locator('svg.lucide-bell').wait_for(timeout=20000)
+                except Exception as e:
+                    print('Unable to ensure logged-in on substack homepage, you need to relogin', e)
+                    if relogin_command:
+                        subprocess.run(['/bin/bash', '-c', relogin_command])
+                    return None
             page.goto(url)
             page.wait_for_load_state()
             try:
@@ -137,6 +145,7 @@ if __name__ == '__main__':
     a.add_argument('--substack-login-url', help='For initial authentication with Substack: the URL from the email received from Substack when entering your email on the login page')
     a.add_argument('--non-headless', help='Debug by not having headless browser', action='store_true')
     a.add_argument('--output-folder', help='Output folder', default='out')
+    a.add_argument('--relogin-command', help='Command to run when relogin is required (e.g. send a notification)', default=None)
     args = a.parse_args()
 
     if not args.config_folder:
@@ -168,5 +177,5 @@ if __name__ == '__main__':
                 print(f'File {path=} already exists, skipping')
                 continue
             print(f'Downloading {date=} {title=} {path=}')
-            ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless)
+            ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless, relogin_command=args.relogin_command)
 
