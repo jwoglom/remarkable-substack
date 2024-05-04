@@ -25,6 +25,7 @@ def parse_args():
     a.add_argument('--config-folder', help='Configuration folder for remarkable-substack')
     a.add_argument('--tmp-folder', help='Temporary storage folder for remarkable-substack')
     a.add_argument('--relogin-command', help='Command to run when relogin is required to substack (e.g. send a notification)', default=None)
+    a.add_argument('--remarkable-relogin-command', help='Command to run when relogin is required to remarkable (e.g. send a notification)', default=None)
     return a.parse_args()
 
 def parse_filename(fn):
@@ -41,9 +42,13 @@ def main(args):
         rm = Remarkable()
         rm.auth_if_needed(args.remarkable_auth_token)
     except Exception as e:
-        if args.relogin_command:
-            subprocess.run(['/bin/bash', '-c', args.relogin_command])
+        if args.remarkable_relogin_command:
+            subprocess.run(['/bin/bash', '-c', args.remarkable_relogin_command])
         raise e
+
+    if not rm.is_auth():
+        if args.remarkable_relogin_command:
+            subprocess.run(['/bin/bash', '-c', args.remarkable_relogin_command])
 
     ls = []
     try:
