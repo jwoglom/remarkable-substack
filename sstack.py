@@ -126,13 +126,19 @@ class Substack:
                 page.locator('svg.lucide-bell').wait_for(timeout=20000)
             except Exception as e:
                 print('try 1: unable to ensure logged-in to', url, ' - error:', e)
-                page.locator('a[href*="sign-in"]').first.click()
+                try:
+                    page.locator('a[href*="sign-in"]').first.click()
+                except:
+                    page.locator('[data-href*="sign-in"]').first.click()
                 page.wait_for_load_state()
                 page.wait_for_timeout(5000)
+                print("Reloading page after signin carryover")
                 page.goto(url)
                 page.wait_for_load_state()
+                print("Looking for login session")
                 try:
                     page.locator('svg.lucide-bell').wait_for(timeout=20000)
+                    print("Logged in!")
                 except Exception as e:
                     print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
                     return None
