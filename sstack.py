@@ -8,6 +8,8 @@ import subprocess
 
 from playwright.sync_api import sync_playwright
 
+login_failures = 0
+login_successes = 0
 class Substack:
     def __init__(self, cookie_file=None, login_url=None):
         self.s = requests.Session()
@@ -84,18 +86,34 @@ class Substack:
         return [{'name': k.name, 'value': k.value, 'port': k.port, 'domain': k.domain, 'path': k.path, 'secure': k.secure, 'expires': k.expires} for k in self.s.cookies]
 
 
+    relogin_command_run = False
     def download_pdf(self, *args, **kwargs):
         for i in range(2):
             try:
-                ret = self._download_pdf(*args, **kwargs)
+                ret = self._download_pdf(*args, retry=i, **kwargs)
                 if ret:
+                    global login_successes
+                    login_successes += 1
+                    print(f'STATUS {login_failures=} {login_successes=}')
                     return ret
             except Exception as e:
                 print('download_pdf call', i+1, 'swallowed exception', e)
             print('Retrying download_pdf()')
-        return self._download_pdf(*args, **kwargs)
+        ret = self._download_pdf(*args, retry=2, **kwargs)
+        if not ret:
+            global login_failures
+            login_failures += 1
+            if kwargs.get('relogin_command') and not self.relogin_command_run:
+                print(f'STATUS {login_failures=} {login_successes=}')
+                subprocess.run(['/bin/bash', '-c', kwargs.get('relogin_command')])
+                self.relogin_command_run = True
+        else:
+            global login_successes
+            login_successes += 1
+            print(f'STATUS {login_failures=} {login_successes=}')
+        return ret
 
-    def _download_pdf(self, url, output_file, headless=True, relogin_command=None):
+    def _download_pdf(self, url, output_file, headless=True, relogin_command=None, retry=0):
         print('Opening playwright:', url)
         parsed_url = urllib.parse.urlparse(url)
         with sync_playwright() as p:
@@ -114,8 +132,6 @@ class Substack:
                 page.locator('svg.lucide-plus').wait_for(timeout=20000)
             except Exception as e:
                 print('Unable to ensure logged-in on substack homepage (no lucide-plus icon), you need to relogin', e)
-                if relogin_command:
-                    subprocess.run(['/bin/bash', '-c', relogin_command])
                 return None
             print('Found logged-in session on substack.com')
 
@@ -142,7 +158,6 @@ class Substack:
                 except Exception as e:
                     print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
                     return None
-
             page.wait_for_timeout(1000)
             print("Starting scroll...")
             lastScrollY = -1000
