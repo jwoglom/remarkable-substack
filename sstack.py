@@ -103,7 +103,7 @@ class Substack:
         ret = self._download_pdf(*args, retry=2, **kwargs)
         if not ret:
             login_failures += 1
-            if kwargs.get('relogin_command') and not self.relogin_command_run:
+            if kwargs.get('relogin_command') and not self.relogin_command_run and login_successes == 0:
                 print(f'STATUS {login_failures=} {login_successes=}')
                 subprocess.run(['/bin/bash', '-c', kwargs.get('relogin_command')])
                 self.relogin_command_run = True
