@@ -127,7 +127,7 @@ class Substack:
             page.wait_for_timeout(5000)
             print('Opening https://substack.com')
             try:
-                page.locator('svg.lucide-plus').wait_for(timeout=20000)
+                page.locator('svg.lucide-plus').wait_for(timeout=1000)
             except Exception as e:
                 print('Unable to ensure logged-in on substack homepage (no lucide-plus icon), you need to relogin', e)
                 return None
@@ -137,7 +137,7 @@ class Substack:
             page.wait_for_load_state()
             print('Ensuring logged-in session carries to article details')
             try:
-                page.locator('svg.lucide-bell').wait_for(timeout=20000)
+                page.locator('svg.lucide-bell').wait_for(timeout=2000)
             except Exception as e:
                 print('try 1: unable to ensure logged-in to', url, ' - error:', e)
                 try:
@@ -151,7 +151,7 @@ class Substack:
                 page.wait_for_load_state()
                 print("Looking for login session")
                 try:
-                    page.locator('svg.lucide-bell').wait_for(timeout=20000)
+                    page.locator('svg.lucide-bell').wait_for(timeout=2000)
                     print("Logged in!")
                 except Exception as e:
                     print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
