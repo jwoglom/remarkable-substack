@@ -86,11 +86,10 @@ def main(args):
                 num_pages = article_data.get(id)['num_pages']
                 stat = rm.stat(f'{args.folder}/{file}')
                 print(f"Check: {file} is on page {1+stat['CurrentPage']} of {num_pages} total")
-                if args.delete_already_read:
-                    if 1 + stat['CurrentPage'] == num_pages:
-                        print(f"Will delete {file} since already read")
-                        files_to_delete.add(f'{args.folder}/{file}')
-                if stat['CurrentPage'] == 0:
+                if args.delete_already_read and 1 + stat['CurrentPage'] == num_pages:
+                    print(f"Will delete {file} since already read")
+                    files_to_delete.add(f'{args.folder}/{file}')
+                else:
                     unread_hrs = (now_ts - added_ts) / 60 / 60
                     if args.delete_unread_after_hours >= 0 and unread_hrs >= args.delete_unread_after_hours:
                         print(f"Article not opened after {unread_hrs} hrs, will delete if needed: {file}")
@@ -100,6 +99,21 @@ def main(args):
     print(f'{delete_if_needed.keys()=}')
     if args.delete_already_read:
         print(f'{files_to_delete=}')
+
+        if len(files_to_delete) > 0:
+            print('Deleting old files')
+            for path in files_to_delete:
+                print(f'Deleting {path}')
+                assert path.startswith(f'{args.folder}/')
+                assert '../' not in path
+                assert '/..' not in path
+                assert len(path) > 2 + len(args.folder)
+                rm.rm(path)
+
+                id = parse_filename(path)
+                if id and id in article_data:
+                    article_data[id]['deleted'] = now_ts
+            files_to_delete = []
 
 
     cookie_file = os.path.join(args.config_folder, '.substack-cookie')
