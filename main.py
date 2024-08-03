@@ -127,7 +127,7 @@ def main(args):
     after = None
     while len(fetched_ids) < args.max_fetch_count:
         print(f'get_posts(after={after})')
-        posts = ss.get_posts(limit=20, after=None)
+        posts = ss.get_posts(limit=20, after=after)
 
         for post in posts['posts']:
             id = str(post['id'])
