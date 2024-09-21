@@ -27,6 +27,15 @@ pipenv run python3.py
 ## First-time setup
 The first time you run remarkable-substack, you need to authenticate with both the ReMarkable Cloud and Substack.
 
+### Preparatory Task
+Configuration data for the application is stored in a file - /home/appuser/.rmapi which must be created prior to running the steps below. If this file is not created first, the application may create it as a directory rather than a file on some systems which could lead to problems. If you get "IsADirectoryError", this is most likely the culprit. 
+
+To create this file, run the following command:
+```bash
+cd
+touch .rmapi
+``` 
+
 ### Authenticating with ReMarkable
 
 Go to https://my.remarkable.com/device/desktop/connect and log in with your existing account.
