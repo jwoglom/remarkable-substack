@@ -10,7 +10,7 @@ You can run either via Docker or locally with Python + pipenv.
 With `docker run`, use an invocation such as the following. Update the version number to the latest release.
 
 ```bash
-docker run -v ~/.rmapi:/home/appuser/.rmapi -v ~/.config/remarkable-substack:/home/appuser/.config/remarkable-substack  --rm -it ghcr.io/jwoglom/remarkable-substack/remarkable-substack:v0.2.3
+docker run -v ~/.rmapi:/home/appuser/.rmapi -v ~/.config/remarkable-substack:/home/appuser/.config/remarkable-substack  --rm -it ghcr.io/jwoglom/remarkable-substack/remarkable-substack:v0.3.9
 ```
 
 Note the volume-mounted `.rmapi` folder from your home directory which is used to store the long-running remarkable session token, and the `.config/remarkable-substack` folder which stores the substack session token.
@@ -31,12 +31,12 @@ The first time you run remarkable-substack, you need to authenticate with both t
 
 Go to https://my.remarkable.com/device/desktop/connect and log in with your existing account.
 You will be provided a verification code on this page.
-Run the application with the additional argument `--remarkable-login-token=XXXXX`, substituting the token from this page.
+Run the application with the additional argument `--remarkable-auth-token=XXXXX`, substituting the token from this page.
 
 For the examples above, this would look like either:
 ```
-docker run -v ~/.rmapi:/home/appuser/.rmapi -v ~/.config/remarkable-substack:/home/appuser/.config/remarkable-substack  --rm -it ghcr.io/jwoglom/remarkable-substack/remarkable-substack:v0.2.3 --remarkable-login-token=XXXXX
-pipenv run python3.py --remarkable-login-token=XXXXX
+docker run -v ~/.rmapi:/home/appuser/.rmapi -v ~/.config/remarkable-substack:/home/appuser/.config/remarkable-substack  --rm -it ghcr.io/jwoglom/remarkable-substack/remarkable-substack:v0.3.9 --remarkable-auth-token=XXXXX
+pipenv run python3.py --remarkable-auth-token=XXXXX
 ```
 
 ### Authenticating with Substack
@@ -46,7 +46,7 @@ After authenticating with ReMarkable, you'll need to log in to substack. Open an
 
 For the examples above, this would look like either:
 ```
-docker run -v ~/.rmapi:/home/appuser/.rmapi -v ~/.config/remarkable-substack:/home/appuser/.config/remarkable-substack  --rm -it ghcr.io/jwoglom/remarkable-substack/remarkable-substack:v0.2.3 --substack-login-url=https://XXXXX
+docker run -v ~/.rmapi:/home/appuser/.rmapi -v ~/.config/remarkable-substack:/home/appuser/.config/remarkable-substack  --rm -it ghcr.io/jwoglom/remarkable-substack/remarkable-substack:v0.3.9 --substack-login-url=https://XXXXX
 pipenv run python3.py --substack-login-url=https://XXXXX
 ```
 
