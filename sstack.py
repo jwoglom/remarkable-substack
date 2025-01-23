@@ -203,6 +203,26 @@ class Substack:
                         print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
                         return None
             page.wait_for_timeout(1000)
+            page.add_style_tag(content='''
+article {
+    margin: 0 75px !important;
+}
+
+div.pencraft {
+    display: none !important;
+}
+
+@media print {
+    article {
+        margin: 0 75px !important;
+    }
+
+    div.pencraft {
+        display: none !important;
+    }
+}
+            ''')
+            page.wait_for_timeout(1000)
             print("Starting scroll...")
             lastScrollY = -1000
             curScrollY = page.evaluate('(document.scrollingElement || document.body).scrollTop')
@@ -222,10 +242,10 @@ class Substack:
             page.emulate_media(media="print")
             page.wait_for_timeout(1000)
             page.pdf(path=output_file, margin={
-                'top': '25',
-                'bottom': '25',
-                'left': '50',
-                'right': '50',
+                'top': '0',
+                'bottom': '0',
+                'left': '0',
+                'right': '0',
             })
             browser.close()
         return True
