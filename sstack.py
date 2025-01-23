@@ -222,10 +222,10 @@ class Substack:
             page.emulate_media(media="print")
             page.wait_for_timeout(1000)
             page.pdf(path=output_file, margin={
-                'top': 25,
-                'bottom': 25,
-                'left': 50,
-                'right': 50,
+                'top': '25',
+                'bottom': '25',
+                'left': '50',
+                'right': '50',
             })
             browser.close()
         return True
