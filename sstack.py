@@ -134,7 +134,10 @@ class Substack:
             print('Found logged-in session on substack.com')
 
             page.goto(url)
-            page.wait_for_load_state()
+            try:
+                page.wait_for_load_state(timeout=5000)
+            except:
+                print('load state ignored')
             print('Ensuring logged-in session carries to article details')
             try:
                 page.locator('svg.lucide-bell').wait_for(timeout=2000)
@@ -144,15 +147,24 @@ class Substack:
                     page.locator('a[href*="sign-in"]').first.click()
                 except:
                     page.locator('[data-href*="sign-in"]').first.click()
-                page.wait_for_load_state()
+                try:
+                    page.wait_for_load_state(timeout=5000)
+                except:
+                    print('load state ignored')
                 page.wait_for_timeout(1000)
                 print('Opening https://substack.com/home again')
                 page.goto('https://substack.com/home')
-                page.wait_for_load_state()
+                try:
+                    page.wait_for_load_state(timeout=5000)
+                except:
+                    print('load state ignored')
                 page.wait_for_timeout(2000)
                 print("Reloading page after signin carryover")
                 page.goto(url)
-                page.wait_for_load_state()
+                try:
+                    page.wait_for_load_state(timeout=5000)
+                except:
+                    print('load state ignored')
                 page.wait_for_timeout(1000)
                 print("Looking for login session")
                 try:
@@ -164,15 +176,24 @@ class Substack:
                         page.locator('a[href*="sign-in"]').first.click()
                     except:
                         page.locator('[data-href*="sign-in"]').first.click()
-                    page.wait_for_load_state()
+                    try:
+                        page.wait_for_load_state(timeout=5000)
+                    except:
+                        print('load state ignored')
                     page.wait_for_timeout(2000)
                     print('Opening https://substack.com/home again')
                     page.goto('https://substack.com/home')
-                    page.wait_for_load_state()
+                    try:
+                        page.wait_for_load_state(timeout=5000)
+                    except:
+                        print('load state ignored')
                     page.wait_for_timeout(2000)
                     print("Reloading original page after signin carryover")
                     page.goto(url)
-                    page.wait_for_load_state()
+                    try:
+                        page.wait_for_load_state(timeout=5000)
+                    except:
+                        print('load state ignored')
                     page.wait_for_timeout(2000)
                     print("Looking for login session")
                     try:
