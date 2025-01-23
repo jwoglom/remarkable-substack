@@ -90,7 +90,7 @@ class Substack:
     def download_pdf(self, *args, **kwargs):
         global login_successes
         global login_failures
-        for i in range(2):
+        for i in range(3):
             try:
                 ret = self._download_pdf(*args, retry=i, **kwargs)
                 if ret:
@@ -100,7 +100,7 @@ class Substack:
             except Exception as e:
                 print('download_pdf call', i+1, 'swallowed exception', e)
             print('Retrying download_pdf()')
-        ret = self._download_pdf(*args, retry=2, **kwargs)
+        ret = self._download_pdf(*args, retry=3, **kwargs)
         if not ret:
             login_failures += 1
             if kwargs.get('relogin_command') and not self.relogin_command_run and login_successes == 0:
@@ -121,11 +121,11 @@ class Substack:
             context.add_cookies(self.playwright_cookies())
             page = context.new_page()
 
-            print('Opening https://substack.com')
-            page.goto('https://substack.com')
+            print('Opening https://substack.com/home')
+            page.goto('https://substack.com/home')
             page.wait_for_load_state()
             page.wait_for_timeout(5000)
-            print('Opening https://substack.com')
+            print('Opened https://substack.com/home')
             try:
                 page.locator('svg.lucide-plus').wait_for(timeout=1000)
             except Exception as e:
@@ -139,23 +139,48 @@ class Substack:
             try:
                 page.locator('svg.lucide-bell').wait_for(timeout=2000)
             except Exception as e:
-                print('try 1: unable to ensure logged-in to', url, ' - error:', e)
+                print('try 1: unable to ensure logged-in to', url, '\n - error:', e)
                 try:
                     page.locator('a[href*="sign-in"]').first.click()
                 except:
                     page.locator('[data-href*="sign-in"]').first.click()
                 page.wait_for_load_state()
-                page.wait_for_timeout(5000)
+                page.wait_for_timeout(1000)
+                print('Opening https://substack.com/home again')
+                page.goto('https://substack.com/home')
+                page.wait_for_load_state()
+                page.wait_for_timeout(2000)
                 print("Reloading page after signin carryover")
                 page.goto(url)
                 page.wait_for_load_state()
+                page.wait_for_timeout(1000)
                 print("Looking for login session")
                 try:
                     page.locator('svg.lucide-bell').wait_for(timeout=2000)
                     print("Logged in!")
                 except Exception as e:
-                    print('TIMED OUT: unable to ensure logged-in to', url, ' - error:', e)
-                    return None
+                    print('try 2: unable to ensure logged-in to', url, '\n - error:', e)
+                    try:
+                        page.locator('a[href*="sign-in"]').first.click()
+                    except:
+                        page.locator('[data-href*="sign-in"]').first.click()
+                    page.wait_for_load_state()
+                    page.wait_for_timeout(2000)
+                    print('Opening https://substack.com/home again')
+                    page.goto('https://substack.com/home')
+                    page.wait_for_load_state()
+                    page.wait_for_timeout(2000)
+                    print("Reloading original page after signin carryover")
+                    page.goto(url)
+                    page.wait_for_load_state()
+                    page.wait_for_timeout(2000)
+                    print("Looking for login session")
+                    try:
+                        page.locator('svg.lucide-bell').wait_for(timeout=3000)
+                        print("Logged in!")
+                    except Exception as e2:
+                        print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
+                        return None
             page.wait_for_timeout(1000)
             print("Starting scroll...")
             lastScrollY = -1000
