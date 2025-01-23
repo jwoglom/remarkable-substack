@@ -205,22 +205,28 @@ class Substack:
             page.wait_for_timeout(1000)
             page.emulate_media(media="print")
             page.wait_for_timeout(1000)
-            page.add_style_tag(content='''
-article {
-    margin: 0 75px !important;
+            page.add_style_tag(content='''                           
+@page {
+    size: A4;
+    margin: 20mm !important;
 }
+@media all {
+    @page {
+        size: A4;
+        margin: 20mm !important;
+    }
 
-div.pencraft {
-    display: none !important;
-}
-
-@media print {
     article {
-        margin: 0 75px !important;
+        margin: 0 20mm !important;
     }
 
     div.pencraft {
         display: none !important;
+    }
+
+    html, body {
+        width: 210mm;
+        height: 297mm;
     }
 }
             ''')
@@ -241,12 +247,7 @@ div.pencraft {
             page.mouse.wheel(0, -1 * scrolled)
             page.wait_for_timeout(1000)
             print("Done scrolling")
-            page.pdf(path=output_file, margin={
-                'top': '0',
-                'bottom': '0',
-                'left': '0',
-                'right': '0',
-            })
+            page.pdf(path=output_file, prefer_css_page_size=True)
             browser.close()
         return True
 
