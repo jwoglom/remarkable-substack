@@ -203,6 +203,8 @@ class Substack:
                         print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
                         return None
             page.wait_for_timeout(1000)
+            page.emulate_media(media="print")
+            page.wait_for_timeout(1000)
             page.add_style_tag(content='''
 article {
     margin: 0 75px !important;
@@ -239,8 +241,6 @@ div.pencraft {
             page.mouse.wheel(0, -1 * scrolled)
             page.wait_for_timeout(1000)
             print("Done scrolling")
-            page.emulate_media(media="print")
-            page.wait_for_timeout(1000)
             page.pdf(path=output_file, margin={
                 'top': '0',
                 'bottom': '0',
