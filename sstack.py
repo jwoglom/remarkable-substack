@@ -182,6 +182,15 @@ class Substack:
                         print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
                         return None
             page.wait_for_timeout(1000)
+            print("Updating css")
+            page.add_style_tag({'content': '''
+@media print {
+    body {
+        padding: 25px !important;
+    }
+}
+            '''})
+            page.wait_for_timeout(1000)
             print("Starting scroll...")
             lastScrollY = -1000
             curScrollY = page.evaluate('(document.scrollingElement || document.body).scrollTop')
