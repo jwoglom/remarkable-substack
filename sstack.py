@@ -146,7 +146,11 @@ class Substack:
                 try:
                     page.locator('a[href*="sign-in"]').first.click()
                 except:
+                    print('no href=sign-in')
+                try:
                     page.locator('[data-href*="sign-in"]').first.click()
+                except:
+                    print('no data-href=sign-in')
                 try:
                     page.wait_for_load_state(timeout=5000)
                 except:
@@ -175,7 +179,11 @@ class Substack:
                     try:
                         page.locator('a[href*="sign-in"]').first.click()
                     except:
+                        print('no href=sign-in')
+                    try:
                         page.locator('[data-href*="sign-in"]').first.click()
+                    except:
+                        print('no data-href=sign-in')
                     try:
                         page.wait_for_load_state(timeout=5000)
                     except:
