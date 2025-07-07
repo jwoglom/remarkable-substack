@@ -14,7 +14,7 @@ FROM base AS python-deps
 # Install pipenv and compilation dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends gcc wget software-properties-common
 RUN pip install pipenv
-RUN wget https://github.com/juruen/rmapi/releases/download/v0.0.25/rmapi-linuxx86-64.tar.gz
+RUN wget https://github.com/ddvk/rmapi/releases/download/v0.0.30/rmapi-linuxx86-64.tar.gz
 RUN tar xvzf rmapi-linuxx86-64.tar.gz
 
 RUN mkdir -p /base
