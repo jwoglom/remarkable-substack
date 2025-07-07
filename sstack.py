@@ -34,6 +34,8 @@ class Substack:
             page.goto(login_url)
             page.wait_for_load_state()
             page.wait_for_timeout(5000)
+            page.goto(login_url)
+            page.wait_for_load_state()
             c = context.cookies()
             print('[login] got cookies: %s' % c)
             self.write_cookies(c)
@@ -71,6 +73,7 @@ class Substack:
             url += f'&offset={offset}'
         r = self.s.get(url)
         if r.status_code == 429:
+            print('429, waiting')
             time.sleep(5)
         if r.status_code//100 != 2:
             raise RuntimeError(f'{r.status_code}: {r.text}')
@@ -79,16 +82,28 @@ class Substack:
     def get_full_archive(self, domain):
         out = []
         offset = None
+        c = 0
         while True:
-            ret = self.get_archive(domain, limit=12, offset=offset)
+            try:
+                ret = self.get_archive(domain, limit=12, offset=offset)
+            except RuntimeError as e:
+                if '429:' in str(e):
+                    time.sleep(15)
+                    continue
+                else:
+                    raise e
             print(f'get_archive({offset=})')
             if not ret:
+                print(f'get_full_archive done {len(out)}')
                 return out
+            c += 1
             out += ret
             if offset:
                 offset += 12
             else:
                 offset = 12
+            if c % 5 == 0:
+                time.sleep(5)
             time.sleep(1)
 
     def get_subscriptions(self):
@@ -133,6 +148,7 @@ class Substack:
             chromium = p.chromium
             browser = chromium.launch(headless=headless)
             context = browser.new_context()
+            print(f'{self.cookies=}')
             if self.cookies:
                 context.add_cookies(self.cookies)
             page = context.new_page()
@@ -164,7 +180,13 @@ class Substack:
                 except:
                     print('no href=sign-in')
                 try:
-                    page.locator('[data-href*="sign-in"]').first.click()
+                    si = page.locator('[data-href*="sign-in"]').first
+                    si_url = si.get_attribute('data-href')
+                    si.click()
+
+                    page.wait_for_load_state(timeout=5000)
+                    page.goto(si_url)
+                    page.wait_for_load_state(timeout=5000)
                 except:
                     print('no data-href=sign-in')
                 try:
