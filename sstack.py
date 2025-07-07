@@ -13,6 +13,7 @@ login_successes = 0
 class Substack:
     def __init__(self, cookie_file=None, login_url=None):
         self.s = requests.Session()
+        self.cookies = None
         self.cookie_file = cookie_file
         if login_url:
             print('Using Substack login_url')
@@ -21,11 +22,27 @@ class Substack:
             print(f'Using existing substack cookie file {cookie_file=}')
             self.read_cookies()
     
-    def write_cookies(self):
+    def login(self, login_url, headless=True):
+        #r = self.s.get(login_url, allow_redirects=True)
+        print('[login] Opening playwright:', login_url)
+        with sync_playwright() as p:
+            chromium = p.chromium
+            browser = chromium.launch(headless=headless)
+            context = browser.new_context()
+            page = context.new_page()
+
+            page.goto(login_url)
+            page.wait_for_load_state()
+            page.wait_for_timeout(5000)
+            print('[login] got cookies: %s' % context.cookies)
+            self.write_cookies(context.cookies)
+    
+    def write_cookies(self, playwright_cookies):
         if not self.cookie_file:
             return
         with open(self.cookie_file, 'wb') as f:
-            pickle.dump(self.s.cookies, f)
+            pickle.dump(playwright_cookies, f)
+            self.cookies = playwright_cookies
     
     def read_cookies(self):
         if not self.cookie_file:
@@ -33,13 +50,10 @@ class Substack:
         if not os.path.exists(self.cookie_file):
             return
         with open(self.cookie_file, 'rb') as f:
-            self.s.cookies.update(pickle.load(f))
+            self.cookies = pickle.load(f)
 
-    
-    def login(self, login_url):
-        r = self.s.get(login_url, allow_redirects=True)
-        print(r.status_code, r)
-        self.write_cookies()
+
+
     
     def get_posts(self, inbox_type='inbox', limit=12, after=None): # max limit enforced by substack: 20
         url = f'https://substack.com/api/v1/reader/posts?inboxType={inbox_type}&limit={limit}'
@@ -82,8 +96,8 @@ class Substack:
             raise RuntimeError(f'{r.status_code}: {r.text}')
         return r.json()
 
-    def playwright_cookies(self):
-        return [{'name': k.name, 'value': k.value, 'port': k.port, 'domain': k.domain, 'path': k.path, 'secure': k.secure, 'expires': k.expires} for k in self.s.cookies]
+    # def playwright_cookies(self):
+    #     return [{'name': k.name, 'value': k.value, 'port': k.port, 'domain': k.domain, 'path': k.path, 'secure': k.secure, 'expires': k.expires} for k in self.s.cookies]
 
 
     relogin_command_run = False
@@ -118,7 +132,7 @@ class Substack:
             chromium = p.chromium
             browser = chromium.launch(headless=headless)
             context = browser.new_context()
-            context.add_cookies(self.playwright_cookies())
+            context.add_cookies(self.cookies)
             page = context.new_page()
 
             print('Opening https://substack.com/home')
