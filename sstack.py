@@ -34,8 +34,9 @@ class Substack:
             page.goto(login_url)
             page.wait_for_load_state()
             page.wait_for_timeout(5000)
-            print('[login] got cookies: %s' % context.cookies)
-            self.write_cookies(context.cookies)
+            c = context.cookies()
+            print('[login] got cookies: %s' % c)
+            self.write_cookies(c)
     
     def write_cookies(self, playwright_cookies):
         if not self.cookie_file:
@@ -132,7 +133,8 @@ class Substack:
             chromium = p.chromium
             browser = chromium.launch(headless=headless)
             context = browser.new_context()
-            context.add_cookies(self.cookies)
+            if self.cookies:
+                context.add_cookies(self.cookies)
             page = context.new_page()
 
             print('Opening https://substack.com/home')
