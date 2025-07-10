@@ -11,9 +11,6 @@ pytest-playwright = "*"
 
 [dev-packages]
 
-[requires]
-python_version = "3.10"
-
 [scripts]
 "sstack.py" = "python3 sstack.py"
 "main.py" = "python3 main.py"
