@@ -17,7 +17,11 @@ class Substack:
         self.cookie_file = cookie_file
         if login_url:
             print('Using Substack login_url')
-            self.login(login_url)
+            try:
+                self.login(login_url)
+            except Exception as e:
+                print('login failed, trying to read existing cookies', e)
+                self.read_cookies()
         else:
             print(f'Using existing substack cookie file {cookie_file=}')
             self.read_cookies()
