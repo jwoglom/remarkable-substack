@@ -81,7 +81,8 @@ class Substack:
             return
         with open(self.cookie_file, 'r') as f:
             self.cookies = json.load(f)
-            self.s.cookies.update(self.cookies)
+            for c in self.cookies:
+                self.s.cookies.set(c['name'], c['value'], domain=c['domain'])
 
 
 
