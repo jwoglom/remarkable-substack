@@ -34,26 +34,49 @@ class Substack:
             page.goto(login_url)
             page.wait_for_load_state()
             page.wait_for_timeout(5000)
+            try:
+                page.evaluate('location.reload()')
+            except:
+                print('location.reload() failed')
             page.goto(login_url)
+            page.wait_for_load_state()
+            try:
+                page.evaluate('location.reload()')
+            except:
+                print('location.reload() failed')
+            page.goto('https://substack.com/home')
             page.wait_for_load_state()
             c = context.cookies()
             print('[login] got cookies: %s' % c)
             self.write_cookies(c)
     
     def write_cookies(self, playwright_cookies):
+        def _to_json(c):
+            return {
+                'name': c.get('name'),
+                'value': c.get('value'),
+                'domain': c.get('domain'),
+                'path': c.get('path'),
+                'expires': c.get('expires'),
+                'httpOnly': c.get('httpOnly'),
+                'secure': c.get('secure'),
+                'sameSite': c.get('sameSite'),
+            }
+
         if not self.cookie_file:
             return
-        with open(self.cookie_file, 'wb') as f:
-            pickle.dump(playwright_cookies, f)
-            self.cookies = playwright_cookies
+        with open(self.cookie_file, 'w') as f:
+            j = [_to_json(c) for c in playwright_cookies]
+            f.write(json.dumps(j, indent=4))
+            self.cookies = j
     
     def read_cookies(self):
         if not self.cookie_file:
             return
         if not os.path.exists(self.cookie_file):
             return
-        with open(self.cookie_file, 'rb') as f:
-            self.cookies = pickle.load(f)
+        with open(self.cookie_file, 'r') as f:
+            self.cookies = json.load(f)
 
 
 
@@ -142,11 +165,11 @@ class Substack:
             print(f'STATUS {login_failures=} {login_successes=}')
         return ret
 
-    def _download_pdf(self, url, output_file, headless=True, relogin_command=None, retry=0):
+    def _download_pdf(self, url, output_file, headless=True, slow_mo=0, relogin_command=None, retry=0):
         print('Opening playwright:', url)
         with sync_playwright() as p:
             chromium = p.chromium
-            browser = chromium.launch(headless=headless)
+            browser = chromium.launch(headless=headless, slow_mo=slow_mo)
             context = browser.new_context()
             print(f'{self.cookies=}')
             if self.cookies:
@@ -184,9 +207,9 @@ class Substack:
                     si_url = si.get_attribute('data-href')
                     si.click()
 
-                    page.wait_for_load_state(timeout=5000)
+                    page.wait_for_load_state(timeout=2000)
                     page.goto(si_url)
-                    page.wait_for_load_state(timeout=5000)
+                    page.wait_for_load_state(timeout=2000)
                 except:
                     print('no data-href=sign-in')
                 try:
@@ -223,6 +246,10 @@ class Substack:
                     except:
                         print('no data-href=sign-in')
                     try:
+                        page.evaluate('location.reload()')
+                    except:
+                        print('location.reload() failed')
+                    try:
                         page.wait_for_load_state(timeout=5000)
                     except:
                         print('load state ignored')
@@ -236,6 +263,14 @@ class Substack:
                     page.wait_for_timeout(2000)
                     print("Reloading original page after signin carryover")
                     page.goto(url)
+                    try:
+                        page.wait_for_load_state(timeout=2000)
+                    except:
+                        print('load state ignored')
+                    try:
+                        page.evaluate('location.reload()')
+                    except:
+                        print('location.reload() failed')
                     try:
                         page.wait_for_load_state(timeout=5000)
                     except:
@@ -266,13 +301,12 @@ class Substack:
         margin: 0 20mm !important;
     }
 
-    div.pencraft {
+    div#discussion, .publication-footer, .footer {
         display: none !important;
     }
 
     html, body {
-        width: 210mm;
-        height: 297mm;
+        width: 250mm;
     }
 }
             ''')
@@ -308,6 +342,7 @@ if __name__ == '__main__':
     a.add_argument('--non-headless', help='Debug by not having headless browser', action='store_true')
     a.add_argument('--output-folder', help='Output folder', default='out')
     a.add_argument('--relogin-command', help='Command to run when relogin is required (e.g. send a notification)', default=None)
+    a.add_argument('--slow-mo', help='Slow down browser actions by this many milliseconds', default=0, type=int)
     args = a.parse_args()
 
     if not args.config_folder:
@@ -321,7 +356,7 @@ if __name__ == '__main__':
     if args.download_url:
         path = f'{args.output_folder}/article.pdf'
         print(f'Downloading {args.download_url=} {path=}')
-        ret = ss.download_pdf(args.download_url, path, headless=not args.non_headless)
+        ret = ss.download_pdf(args.download_url, path, headless=not args.non_headless, slow_mo=args.slow_mo)
         print(f'Result: {ret}')
 
     if args.download_domain:
@@ -342,6 +377,6 @@ if __name__ == '__main__':
                 print(f'File {path=} already exists, skipping')
                 continue
             print(f'Downloading {date=} {title=} {path=}')
-            ret = ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless, relogin_command=args.relogin_command)
+            ret = ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless, relogin_command=args.relogin_command, slow_mo=args.slow_mo)
             print(f'Result: {ret}')
 
