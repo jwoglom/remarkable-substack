@@ -319,8 +319,13 @@ class Substack:
                     page.locator('svg.lucide-bell').wait_for(timeout=3000)
                     print("Logged in!")
                 except Exception as e2:
+                    pass
+                bell = page.evaluate('document.querySelector("svg.lucide-bell")')
+                if not bell:
                     print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
                     return None
+                else:
+                    print('FOUND!')
         page.wait_for_timeout(1000)
         page.emulate_media(media="print")
         page.wait_for_timeout(1000)
