@@ -8,6 +8,8 @@ rmapy = "*"
 requests = "*"
 pypdf = "*"
 pytest-playwright = "*"
+playwright-stealth = "*"
+playwright = "*"
 
 [dev-packages]
 

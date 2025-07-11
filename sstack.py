@@ -7,11 +7,15 @@ import time
 import subprocess
 
 from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
 
 login_failures = 0
 login_successes = 0
 class Substack:
-    def __init__(self, cookie_file=None, login_url=None):
+    def __init__(self, context, cookie_file=None, login_url=None):
+        self.context = context
+        self.page = None
+
         self.s = requests.Session()
         self.cookies = None
         self.cookie_file = cookie_file
@@ -25,34 +29,63 @@ class Substack:
         else:
             print(f'Using existing substack cookie file {cookie_file=}')
             self.read_cookies()
+            self.launch_homepage_and_save_cookies()
     
+    def _new_page(self):
+        p = self.context.new_page()
+        def _refresh_if_429(response):
+            if response.status == 429 and not ('api/v1' in response.url):
+                print('429, waiting', response.url)
+                time.sleep(5)
+                p.reload()
+                p.wait_for_load_state()
+        p.on('response', _refresh_if_429)
+        return p
+
     def login(self, login_url, headless=True):
         #r = self.s.get(login_url, allow_redirects=True)
         print('[login] Opening playwright:', login_url)
-        with sync_playwright() as p:
-            chromium = p.chromium
-            browser = chromium.launch(headless=headless)
-            context = browser.new_context()
-            page = context.new_page()
-
-            page.goto(login_url)
-            page.wait_for_load_state()
-            page.wait_for_timeout(5000)
-            try:
-                page.evaluate('location.reload()')
-            except:
-                print('location.reload() failed')
-            page.goto(login_url)
-            page.wait_for_load_state()
-            try:
-                page.evaluate('location.reload()')
-            except:
-                print('location.reload() failed')
-            page.goto('https://substack.com/home')
-            page.wait_for_load_state()
-            c = context.cookies()
-            print('[login] got cookies: %s' % c)
-            self.write_cookies(c)
+        if not self.page:
+            self.page = self._new_page()
+        page = self.page
+        page.goto(login_url)
+        page.wait_for_load_state()
+        page.wait_for_timeout(5000)
+        try:
+            page.evaluate('location.reload()')
+        except:
+            print('location.reload() failed')
+        page.goto(login_url)
+        page.wait_for_load_state()
+        try:
+            page.evaluate('location.reload()')
+        except:
+            print('location.reload() failed')
+        page.goto('https://substack.com/home')
+        page.wait_for_load_state()
+        c = self.context.cookies()
+        print('[login] got cookies: %s' % c)
+        self.write_cookies(c)
+    
+    def launch_homepage_and_save_cookies(self):
+        print('[launch] Opening playwright: https://substack.com/home')
+        if self.cookies:
+            print(f'adding {len(self.cookies)} cookies')
+            self.context.add_cookies(self.cookies)
+        if not self.page:
+            self.page = self._new_page()
+        page = self.page
+        page.goto('https://substack.com/home')
+        page.wait_for_load_state()
+        try:
+            page.evaluate('location.reload()')
+        except:
+            print('location.reload() failed')
+        page.goto('https://substack.com/home')
+        page.wait_for_load_state()
+        c = self.context.cookies()
+        print('[launch] got cookies: %s' % c)
+        self.write_cookies(c)
     
     def write_cookies(self, playwright_cookies):
         def _to_json(c):
@@ -173,56 +206,92 @@ class Substack:
 
     def _download_pdf(self, url, output_file, headless=True, slow_mo=0, relogin_command=None, retry=0):
         print('Opening playwright:', url)
-        with sync_playwright() as p:
-            chromium = p.chromium
-            browser = chromium.launch(headless=headless, slow_mo=slow_mo)
-            context = browser.new_context()
-            print(f'{self.cookies=}')
-            if self.cookies:
-                context.add_cookies(self.cookies)
-            page = context.new_page()
+        
+        if self.cookies:
+            print(f'adding {len(self.cookies)} cookies')
+            self.context.add_cookies(self.cookies)
+        if not self.page:
+            self.page = self._new_page()
+        page = self.page
 
-            print('Opening https://substack.com/home')
-            page.goto('https://substack.com/home')
-            page.wait_for_load_state()
-            page.wait_for_timeout(5000)
-            print('Opened https://substack.com/home')
+        print('Opening https://substack.com/home')
+        page.goto('https://substack.com/home')
+        page.wait_for_load_state()
+        page.wait_for_timeout(5000)
+        print('Opened https://substack.com/home')
+        try:
+            page.locator('svg.lucide-plus').wait_for(timeout=1000)
+        except Exception as e:
+            print('Unable to ensure logged-in on substack homepage (no lucide-plus icon), you need to relogin', e)
+            return None
+        print('Found logged-in session on substack.com')
+
+        page.goto(url)
+        try:
+            page.wait_for_load_state(timeout=5000)
+        except:
+            print('load state ignored')
+        print('Ensuring logged-in session carries to article details')
+        try:
+            page.locator('svg.lucide-bell').wait_for(timeout=2000)
+        except Exception as e:
+            print('try 1: unable to ensure logged-in to', url, '\n - error:', e)
             try:
-                page.locator('svg.lucide-plus').wait_for(timeout=1000)
-            except Exception as e:
-                print('Unable to ensure logged-in on substack homepage (no lucide-plus icon), you need to relogin', e)
-                return None
-            print('Found logged-in session on substack.com')
+                page.locator('a[href*="sign-in"]').first.click()
+            except:
+                print('no href=sign-in')
+            try:
+                si = page.locator('[data-href*="sign-in"]').first
+                si_url = si.get_attribute('data-href')
+                si.click()
 
+                page.wait_for_load_state(timeout=2000)
+                page.goto(si_url)
+                page.wait_for_load_state(timeout=2000)
+            except:
+                print('no data-href=sign-in')
+            try:
+                page.wait_for_load_state(timeout=5000)
+            except:
+                print('load state ignored')
+            page.wait_for_timeout(1000)
+            print('Opening https://substack.com/home again')
+            page.goto('https://substack.com/home')
+            try:
+                page.wait_for_load_state(timeout=5000)
+            except:
+                print('load state ignored')
+            page.wait_for_timeout(2000)
+            print("Reloading page after signin carryover")
             page.goto(url)
             try:
                 page.wait_for_load_state(timeout=5000)
             except:
                 print('load state ignored')
-            print('Ensuring logged-in session carries to article details')
+            page.wait_for_timeout(1000)
+            print("Looking for login session")
             try:
                 page.locator('svg.lucide-bell').wait_for(timeout=2000)
+                print("Logged in!")
             except Exception as e:
-                print('try 1: unable to ensure logged-in to', url, '\n - error:', e)
+                print('try 2: unable to ensure logged-in to', url, '\n - error:', e)
                 try:
                     page.locator('a[href*="sign-in"]').first.click()
                 except:
                     print('no href=sign-in')
                 try:
-                    si = page.locator('[data-href*="sign-in"]').first
-                    si_url = si.get_attribute('data-href')
-                    si.click()
-
-                    page.wait_for_load_state(timeout=2000)
-                    page.goto(si_url)
-                    page.wait_for_load_state(timeout=2000)
+                    page.locator('[data-href*="sign-in"]').first.click()
                 except:
                     print('no data-href=sign-in')
+                try:
+                    page.evaluate('location.reload()')
+                except:
+                    print('location.reload() failed')
                 try:
                     page.wait_for_load_state(timeout=5000)
                 except:
                     print('load state ignored')
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
                 print('Opening https://substack.com/home again')
                 page.goto('https://substack.com/home')
                 try:
@@ -230,69 +299,32 @@ class Substack:
                 except:
                     print('load state ignored')
                 page.wait_for_timeout(2000)
-                print("Reloading page after signin carryover")
+                print("Reloading original page after signin carryover")
                 page.goto(url)
+                try:
+                    page.wait_for_load_state(timeout=2000)
+                except:
+                    print('load state ignored')
+                try:
+                    page.evaluate('location.reload()')
+                except:
+                    print('location.reload() failed')
                 try:
                     page.wait_for_load_state(timeout=5000)
                 except:
                     print('load state ignored')
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
                 print("Looking for login session")
                 try:
-                    page.locator('svg.lucide-bell').wait_for(timeout=2000)
+                    page.locator('svg.lucide-bell').wait_for(timeout=3000)
                     print("Logged in!")
-                except Exception as e:
-                    print('try 2: unable to ensure logged-in to', url, '\n - error:', e)
-                    try:
-                        page.locator('a[href*="sign-in"]').first.click()
-                    except:
-                        print('no href=sign-in')
-                    try:
-                        page.locator('[data-href*="sign-in"]').first.click()
-                    except:
-                        print('no data-href=sign-in')
-                    try:
-                        page.evaluate('location.reload()')
-                    except:
-                        print('location.reload() failed')
-                    try:
-                        page.wait_for_load_state(timeout=5000)
-                    except:
-                        print('load state ignored')
-                    page.wait_for_timeout(2000)
-                    print('Opening https://substack.com/home again')
-                    page.goto('https://substack.com/home')
-                    try:
-                        page.wait_for_load_state(timeout=5000)
-                    except:
-                        print('load state ignored')
-                    page.wait_for_timeout(2000)
-                    print("Reloading original page after signin carryover")
-                    page.goto(url)
-                    try:
-                        page.wait_for_load_state(timeout=2000)
-                    except:
-                        print('load state ignored')
-                    try:
-                        page.evaluate('location.reload()')
-                    except:
-                        print('location.reload() failed')
-                    try:
-                        page.wait_for_load_state(timeout=5000)
-                    except:
-                        print('load state ignored')
-                    page.wait_for_timeout(2000)
-                    print("Looking for login session")
-                    try:
-                        page.locator('svg.lucide-bell').wait_for(timeout=3000)
-                        print("Logged in!")
-                    except Exception as e2:
-                        print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
-                        return None
-            page.wait_for_timeout(1000)
-            page.emulate_media(media="print")
-            page.wait_for_timeout(1000)
-            page.add_style_tag(content='''                           
+                except Exception as e2:
+                    print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
+                    return None
+        page.wait_for_timeout(1000)
+        page.emulate_media(media="print")
+        page.wait_for_timeout(1000)
+        page.add_style_tag(content='''                           
 @page {
     size: A4;
     margin: 20mm !important;
@@ -315,26 +347,25 @@ class Substack:
         width: 250mm;
     }
 }
-            ''')
-            page.wait_for_timeout(1000)
-            print("Starting scroll...")
-            lastScrollY = -1000
+        ''')
+        page.wait_for_timeout(1000)
+        print("Starting scroll...")
+        lastScrollY = -1000
+        curScrollY = page.evaluate('(document.scrollingElement || document.body).scrollTop')
+        scrolled = 0
+        while curScrollY > lastScrollY:
+            N = 250
+            page.mouse.wheel(0, N)
+            scrolled += N
+            page.wait_for_timeout(50)
+            lastScrollY = curScrollY
             curScrollY = page.evaluate('(document.scrollingElement || document.body).scrollTop')
-            scrolled = 0
-            while curScrollY > lastScrollY:
-                N = 250
-                page.mouse.wheel(0, N)
-                scrolled += N
-                page.wait_for_timeout(50)
-                lastScrollY = curScrollY
-                curScrollY = page.evaluate('(document.scrollingElement || document.body).scrollTop')
 
-            print("Resetting to top")
-            page.mouse.wheel(0, -1 * scrolled)
-            page.wait_for_timeout(1000)
-            print("Done scrolling")
-            page.pdf(path=output_file, prefer_css_page_size=True)
-            browser.close()
+        print("Resetting to top")
+        page.mouse.wheel(0, -1 * scrolled)
+        page.wait_for_timeout(1000)
+        print("Done scrolling")
+        page.pdf(path=output_file, prefer_css_page_size=True)
         return True
 
 if __name__ == '__main__':
@@ -350,39 +381,48 @@ if __name__ == '__main__':
     a.add_argument('--relogin-command', help='Command to run when relogin is required (e.g. send a notification)', default=None)
     a.add_argument('--slow-mo', help='Slow down browser actions by this many milliseconds', default=0, type=int)
     args = a.parse_args()
+    with Stealth().use_sync(sync_playwright()) as p:
+        chromium = p.chromium
+        browser = chromium.launch(headless=not args.non_headless, slow_mo=args.slow_mo)
+        context = browser.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            locale='en-US',
+            timezone_id='America/New_York',
+        )
 
-    if not args.config_folder:
-        args.config_folder = os.path.join(os.path.expanduser('~'), '.config', 'remarkable-substack')
-        if not os.path.exists(args.config_folder):
-            os.makedirs(args.config_folder)
-        print(f'Set --config-folder to {args.config_folder}')
+        if not args.config_folder:
+            args.config_folder = os.path.join(os.path.expanduser('~'), '.config', 'remarkable-substack')
+            if not os.path.exists(args.config_folder):
+                os.makedirs(args.config_folder)
+            print(f'Set --config-folder to {args.config_folder}')
 
-    cookie_file = os.path.join(args.config_folder, '.substack-cookie')
-    ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
-    if args.download_url:
-        path = f'{args.output_folder}/article.pdf'
-        print(f'Downloading {args.download_url=} {path=}')
-        ret = ss.download_pdf(args.download_url, path, headless=not args.non_headless, slow_mo=args.slow_mo)
-        print(f'Result: {ret}')
-
-    if args.download_domain:
-        archive = ss.get_full_archive(args.download_domain)
-        with open(f'{args.output_folder}/{args.download_domain}.json','w') as f:
-            f.write(json.dumps(archive, indent=4))
-
-        print(f'{len(archive)=}')
-        root = f'{args.output_folder}/{args.download_domain}'
-        if not os.path.exists(root):
-            os.makedirs(root, exist_ok=True)
-
-        for item in archive:
-            date = item['post_date'].split('T')[0]
-            title = item['title'].replace('/','-')
-            path = os.path.join(root, f'{date} - {title}.pdf')
-            if os.path.exists(path):
-                print(f'File {path=} already exists, skipping')
-                continue
-            print(f'Downloading {date=} {title=} {path=}')
-            ret = ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless, relogin_command=args.relogin_command, slow_mo=args.slow_mo)
+        cookie_file = os.path.join(args.config_folder, '.substack-cookie')
+        ss = Substack(context, cookie_file=cookie_file, login_url=args.substack_login_url)
+        if args.download_url:
+            path = f'{args.output_folder}/article.pdf'
+            print(f'Downloading {args.download_url=} {path=}')
+            ret = ss.download_pdf(args.download_url, path, headless=not args.non_headless, slow_mo=args.slow_mo)
             print(f'Result: {ret}')
+
+        if args.download_domain:
+            archive = ss.get_full_archive(args.download_domain)
+            with open(f'{args.output_folder}/{args.download_domain}.json','w') as f:
+                f.write(json.dumps(archive, indent=4))
+
+            print(f'{len(archive)=}')
+            root = f'{args.output_folder}/{args.download_domain}'
+            if not os.path.exists(root):
+                os.makedirs(root, exist_ok=True)
+
+            for item in archive:
+                date = item['post_date'].split('T')[0]
+                title = item['title'].replace('/','-')
+                path = os.path.join(root, f'{date} - {title}.pdf')
+                if os.path.exists(path):
+                    print(f'File {path=} already exists, skipping')
+                    continue
+                print(f'Downloading {date=} {title=} {path=}')
+                ret = ss.download_pdf(item['canonical_url'], path, headless=not args.non_headless, relogin_command=args.relogin_command, slow_mo=args.slow_mo)
+                print(f'Result: {ret}')
 
