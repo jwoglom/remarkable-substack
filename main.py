@@ -10,6 +10,8 @@ import subprocess
 
 from remarkable import Remarkable
 from sstack import Substack
+from playwright_stealth import Stealth
+from playwright.sync_api import sync_playwright
 
 from datetime import datetime
 
@@ -116,121 +118,131 @@ def main(args):
             files_to_delete = []
 
 
-    cookie_file = os.path.join(args.config_folder, '.substack-cookie')
-    try:
-        ss = Substack(cookie_file=cookie_file, login_url=args.substack_login_url)
-        subs = ss.get_subscriptions()
-    except Exception as e:
-        if args.relogin_command:
-            subprocess.run(['/bin/bash', '-c', args.relogin_command])
-        raise e
-    publications = {}
-    for pub in subs['publications']:
-        publications[pub['id']] = pub['name']
+    with Stealth().use_sync(sync_playwright()) as p:
+        chromium = p.chromium
+        browser = chromium.launch(headless=not args.non_headless, slow_mo=args.slow_mo)
+        context = browser.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            locale='en-US',
+            timezone_id='America/New_York',
+        )
 
-    def to_filename(post):
-        pub_name = publications[post['publication_id']]
-        title = post['title']
-        return f"{pub_name} - {title} [{id}].pdf"
+        cookie_file = os.path.join(args.config_folder, '.substack-cookie')
+        try:
+            ss = Substack(context, cookie_file=cookie_file, login_url=args.substack_login_url)
+            subs = ss.get_subscriptions()
+        except Exception as e:
+            if args.relogin_command:
+                subprocess.run(['/bin/bash', '-c', args.relogin_command])
+            raise e
+        publications = {}
+        for pub in subs['publications']:
+            publications[pub['id']] = pub['name']
+
+        def to_filename(post):
+            pub_name = publications[post['publication_id']]
+            title = post['title']
+            return f"{pub_name} - {title} [{id}].pdf"
 
 
-    new_ids = set()
-    fetched_ids = set()
-    fetched_old_ids = set()
-    all_posts = []
-    after = None
-    while len(fetched_ids) < args.max_fetch_count:
-        print(f'get_posts(after={after})')
-        posts = ss.get_posts(limit=20, after=after)
+        new_ids = set()
+        fetched_ids = set()
+        fetched_old_ids = set()
+        all_posts = []
+        after = None
+        while len(fetched_ids) < args.max_fetch_count:
+            print(f'get_posts(after={after})')
+            posts = ss.get_posts(limit=20, after=after)
 
-        for post in posts['posts']:
-            id = str(post['id'])
-            fetched_ids.add(id)
-            if id not in existing_ids:
-                if id not in already_downloaded_ids:
-                    if len(new_ids) + len(existing_ids) < args.max_save_count:
-                        print(f'Found new article: {id}: {to_filename(post)}')
-                        new_ids.add(id)
-                    elif len(delete_if_needed) > 0 and args.delete_unread_after_hours >= 0:
-                        delete_id = list(sorted(list(delete_if_needed.keys())))[0]
-                        print(f'Article in delete_if_needed dropped: {delete_id} {delete_if_needed[delete_id]}')
-                        files_to_delete.add(delete_if_needed[delete_id])
-                        del delete_if_needed[delete_id]
+            for post in posts['posts']:
+                id = str(post['id'])
+                fetched_ids.add(id)
+                if id not in existing_ids:
+                    if id not in already_downloaded_ids:
+                        if len(new_ids) + len(existing_ids) < args.max_save_count:
+                            print(f'Found new article: {id}: {to_filename(post)}')
+                            new_ids.add(id)
+                        elif len(delete_if_needed) > 0 and args.delete_unread_after_hours >= 0:
+                            delete_id = list(sorted(list(delete_if_needed.keys())))[0]
+                            print(f'Article in delete_if_needed dropped: {delete_id} {delete_if_needed[delete_id]}')
+                            files_to_delete.add(delete_if_needed[delete_id])
+                            del delete_if_needed[delete_id]
 
-                        print(f'Found new article: {id}: {to_filename(post)}')
-                        new_ids.add(id)
+                            print(f'Found new article: {id}: {to_filename(post)}')
+                            new_ids.add(id)
+                        else:
+                            print(f'Found but not downloading new article (no space): {id}: {to_filename(post)}')
                     else:
-                        print(f'Found but not downloading new article (no space): {id}: {to_filename(post)}')
+                        print(f'Article already read: {id}: {to_filename(post)}')
+                    
                 else:
-                    print(f'Article already read: {id}: {to_filename(post)}')
-                
-            else:
-                fetched_old_ids.add(id)
-                print(f'Article already on remarkable: {id}: {to_filename(post)}')
-            after = post['post_date']
-            all_posts.append(post)
+                    fetched_old_ids.add(id)
+                    print(f'Article already on remarkable: {id}: {to_filename(post)}')
+                after = post['post_date']
+                all_posts.append(post)
 
-        if not posts['more']:
-            print('No more posts to return -- stopping')
-            break
-        
-        time.sleep(5)
-    
-    print(f'{fetched_ids=}')
-    print(f'{fetched_old_ids=}')
-    print(f'{new_ids=}')
-
-    dir = tempfile.gettempdir()
-    if args.tmp_folder:
-        dir = args.tmp_folder
-    to_upload = []
-    for post in all_posts:
-        id = str(post['id'])
-        if id in new_ids:
-            output_file = os.path.join(dir, to_filename(post))
-            print(f"Downloading {post['canonical_url']} to pdf {output_file}")
-            ss.download_pdf(post['canonical_url'], output_file)
-            if not os.path.exists(output_file):
-                print(f"Unable to download {post['canonical_url']} to {output_file}. Skipping")
-                time.sleep(5)
-                continue
-            num_pages = get_num_pages(output_file)
-            article_data[id] = {
-                'id': id,
-                'num_pages': num_pages,
-                'canonical_url': post['canonical_url'],
-                'filename': to_filename(post),
-                'added': now_ts
-            }
-            to_upload.append(output_file)
-            print(f"Download complete: {article_data[id]}")
+            if not posts['more']:
+                print('No more posts to return -- stopping')
+                break
+            
             time.sleep(5)
+        
+        print(f'{fetched_ids=}')
+        print(f'{fetched_old_ids=}')
+        print(f'{new_ids=}')
 
-    
-    print(f'Uploading: {to_upload}')
-    for f in to_upload:
-        print(f'Uploading {f} to {args.folder}')
-        rm.put(f, args.folder)
+        dir = tempfile.gettempdir()
+        if args.tmp_folder:
+            dir = args.tmp_folder
+        to_upload = []
+        for post in all_posts:
+            id = str(post['id'])
+            if id in new_ids:
+                output_file = os.path.join(dir, to_filename(post))
+                print(f"Downloading {post['canonical_url']} to pdf {output_file}")
+                ss.download_pdf(post['canonical_url'], output_file)
+                if not os.path.exists(output_file):
+                    print(f"Unable to download {post['canonical_url']} to {output_file}. Skipping")
+                    time.sleep(5)
+                    continue
+                num_pages = get_num_pages(output_file)
+                article_data[id] = {
+                    'id': id,
+                    'num_pages': num_pages,
+                    'canonical_url': post['canonical_url'],
+                    'filename': to_filename(post),
+                    'added': now_ts
+                }
+                to_upload.append(output_file)
+                print(f"Download complete: {article_data[id]}")
+                time.sleep(5)
 
-    print('Upload complete')
+        
+        print(f'Uploading: {to_upload}')
+        for f in to_upload:
+            print(f'Uploading {f} to {args.folder}')
+            rm.put(f, args.folder)
+
+        print('Upload complete')
 
 
-    if args.delete_already_read and len(files_to_delete) > 0:
-        print('Deleting old files')
-        for path in files_to_delete:
-            print(f'Deleting {path}')
-            assert path.startswith(f'{args.folder}/')
-            assert '../' not in path
-            assert '/..' not in path
-            assert len(path) > 2 + len(args.folder)
-            rm.rm(path)
+        if args.delete_already_read and len(files_to_delete) > 0:
+            print('Deleting old files')
+            for path in files_to_delete:
+                print(f'Deleting {path}')
+                assert path.startswith(f'{args.folder}/')
+                assert '../' not in path
+                assert '/..' not in path
+                assert len(path) > 2 + len(args.folder)
+                rm.rm(path)
 
-            id = parse_filename(path)
-            if id and id in article_data:
-                article_data[id]['deleted'] = now_ts
-    
-    with open(db_file, 'w') as f:
-        f.write(json.dumps(article_data))
+                id = parse_filename(path)
+                if id and id in article_data:
+                    article_data[id]['deleted'] = now_ts
+        
+        with open(db_file, 'w') as f:
+            f.write(json.dumps(article_data))
 
 def get_num_pages(path):
     with open(path, 'rb') as f:
