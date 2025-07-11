@@ -28,6 +28,8 @@ def parse_args():
     a.add_argument('--tmp-folder', help='Temporary storage folder for remarkable-substack')
     a.add_argument('--relogin-command', help='Command to run when relogin is required to substack (e.g. send a notification)', default=None)
     a.add_argument('--remarkable-relogin-command', help='Command to run when relogin is required to remarkable (e.g. send a notification)', default=None)
+    a.add_argument('--non-headless', help='Debug by not having headless browser', action='store_true')
+    a.add_argument('--slow-mo', help='Slow down browser actions by this many milliseconds', default=0, type=int)
     return a.parse_args()
 
 def parse_filename(fn):
