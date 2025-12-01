@@ -1,4 +1,4 @@
-FROM python:3.14-slim as base
+FROM python:3.14-bookworm as base
 
 # The following is adapted from:
 # https://sourcery.ai/blog/python-docker/
@@ -14,8 +14,9 @@ FROM base AS python-deps
 # Install pipenv and compilation dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends gcc wget
 RUN pip install pipenv
-RUN wget https://github.com/ddvk/rmapi/releases/download/v0.0.30/rmapi-linuxx86-64.tar.gz
-RUN tar xvzf rmapi-linuxx86-64.tar.gz
+RUN wget https://github.com/ddvk/rmapi/releases/download/v0.0.32/rmapi-linux-amd64.tar.gz
+
+RUN tar xvzf rmapi-linux-amd64.tar.gz
 
 RUN mkdir -p /base
 WORKDIR /base
