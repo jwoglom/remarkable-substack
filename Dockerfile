@@ -12,7 +12,7 @@ ENV PYTHONFAULTHANDLER 1
 FROM base AS python-deps
 
 # Install pipenv and compilation dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends gcc wget software-properties-common
+RUN apt-get update && apt-get install -y --no-install-recommends gcc wget
 RUN pip install pipenv
 RUN wget https://github.com/ddvk/rmapi/releases/download/v0.0.30/rmapi-linuxx86-64.tar.gz
 RUN tar xvzf rmapi-linuxx86-64.tar.gz
