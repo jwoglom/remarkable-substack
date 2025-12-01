@@ -207,7 +207,8 @@ class Substack:
     def _download_pdf(self, url, output_file, headless=True, slow_mo=0, relogin_command=None, retry=0):
         print('Opening playwright:', url)
 
-        _logged_in_locator = 'svg.lucide-bell, a[href*=sign-out]'
+        _logged_in_locator = 'button:has-text("New post"), [placeholder*="What\'s on your mind"]'
+        _logged_out_locator = 'button:has-text("Sign in")'
         
         if self.cookies:
             print(f'adding {len(self.cookies)} cookies')
@@ -221,10 +222,22 @@ class Substack:
         page.wait_for_load_state()
         page.wait_for_timeout(5000)
         print('Opened https://substack.com/home')
+        
+        # Check for logged-in state: either find logged-in element OR confirm sign-in button is absent
+        logged_in = False
         try:
-            page.locator(_logged_in_locator).wait_for(timeout=1000)
-        except Exception as e:
-            print('Unable to ensure logged-in on substack homepage (no icon), you need to relogin', e)
+            page.locator(_logged_in_locator).first.wait_for(timeout=2000)
+            logged_in = True
+        except Exception:
+            # Fallback: check if sign-in button is NOT visible (indicates logged in)
+            try:
+                sign_in_visible = page.locator(_logged_out_locator).first.is_visible()
+                logged_in = not sign_in_visible
+            except Exception:
+                pass
+        
+        if not logged_in:
+            print('Unable to ensure logged-in on substack homepage, you need to relogin')
             return None
         print('Found logged-in session on substack.com')
 
@@ -234,24 +247,91 @@ class Substack:
         except:
             print('load state ignored')
         print('Ensuring logged-in session carries to article details')
+        
+        # For article pages, check for sign-in link/button (can be <a> or <button>)
+        # Cross-domain cookies require clicking sign-in to transfer session
+        _article_signin_selector = ':is(a, button):has-text("Sign in")'
+        # Paywall detection - multiple selectors for different paywall presentations
+        _article_paywall_selector = ', '.join([
+            '[aria-label="Paywall"]',                           # region with aria-label
+            'text="This post is for paid subscribers"',         # exact paywall heading text
+            'a:has-text("Already a paid subscriber")',          # subscriber sign-in link
+            '[class*="paywall" i]',                             # CSS class containing paywall
+        ])
+        
+        def check_article_logged_in():
+            """Check if we're logged in on an article page by looking for paywall indicators"""
+            try:
+                page.wait_for_timeout(500)
+                has_paywall = page.locator(_article_paywall_selector).first.is_visible()
+                return not has_paywall
+            except Exception:
+                return True
+        
+        def try_signin_carryover():
+            """Click sign-in link to transfer cross-domain session cookies"""
+            signin_clicked = False
+            try:
+                signin_link = page.locator(_article_signin_selector).first
+                if signin_link.is_visible():
+                    print('Found sign-in link, clicking for cross-domain cookie transfer')
+                    signin_link.click()
+                    signin_clicked = True
+                    page.wait_for_load_state(timeout=5000)
+            except Exception as e:
+                print(f'Sign-in link click failed: {e}')
+            
+            # Also try the old selectors as fallback
+            if not signin_clicked:
+                try:
+                    page.locator('a[href*="sign-in"]').first.click()
+                    signin_clicked = True
+                except:
+                    print('no href=sign-in')
+            if not signin_clicked:
+                try:
+                    si = page.locator('[data-href*="sign-in"]').first
+                    si_url = si.get_attribute('data-href')
+                    si.click()
+                    page.wait_for_load_state(timeout=2000)
+                    page.goto(si_url)
+                    page.wait_for_load_state(timeout=2000)
+                    signin_clicked = True
+                except:
+                    print('no data-href=sign-in')
+            return signin_clicked
+        
+        # ALWAYS try to click sign-in on article pages for cross-domain cookie transfer
+        page.wait_for_timeout(1000)
+        signin_visible = False
         try:
-            page.locator(_logged_in_locator).wait_for(timeout=2000)
-        except Exception as e:
-            print('try 1: unable to ensure logged-in to', url, '\n - error:', e)
+            signin_visible = page.locator(_article_signin_selector).first.is_visible()
+        except:
+            pass
+        
+        if signin_visible:
+            print('Sign-in visible on article page, clicking for cross-domain cookie transfer')
+            try_signin_carryover()
+            page.wait_for_timeout(1000)
+            print('Opening https://substack.com/home to complete signin')
+            page.goto('https://substack.com/home')
             try:
-                page.locator('a[href*="sign-in"]').first.click()
+                page.wait_for_load_state(timeout=5000)
             except:
-                print('no href=sign-in')
+                print('load state ignored')
+            page.wait_for_timeout(2000)
+            print("Returning to article page")
+            page.goto(url)
             try:
-                si = page.locator('[data-href*="sign-in"]').first
-                si_url = si.get_attribute('data-href')
-                si.click()
-
-                page.wait_for_load_state(timeout=2000)
-                page.goto(si_url)
-                page.wait_for_load_state(timeout=2000)
+                page.wait_for_load_state(timeout=5000)
             except:
-                print('no data-href=sign-in')
+                print('load state ignored')
+            page.wait_for_timeout(1000)
+        
+        # Check if we have paywall after signin attempt
+        if not check_article_logged_in():
+            print('Paywall detected after first signin attempt, retrying...')
+            try_signin_carryover()
             try:
                 page.wait_for_load_state(timeout=5000)
             except:
@@ -264,70 +344,19 @@ class Substack:
             except:
                 print('load state ignored')
             page.wait_for_timeout(2000)
-            print("Reloading page after signin carryover")
+            print("Returning to article page after signin carryover")
             page.goto(url)
             try:
                 page.wait_for_load_state(timeout=5000)
             except:
                 print('load state ignored')
-            page.wait_for_timeout(1000)
-            print("Looking for login session")
-            try:
-                page.locator(_logged_in_locator).wait_for(timeout=2000)
-                print("Logged in!")
-            except Exception as e:
-                print('try 2: unable to ensure logged-in to', url, '\n - error:', e)
-                try:
-                    page.locator('a[href*="sign-in"]').first.click()
-                except:
-                    print('no href=sign-in')
-                try:
-                    page.locator('[data-href*="sign-in"]').first.click()
-                except:
-                    print('no data-href=sign-in')
-                try:
-                    page.evaluate('location.reload()')
-                except:
-                    print('location.reload() failed')
-                try:
-                    page.wait_for_load_state(timeout=5000)
-                except:
-                    print('load state ignored')
-                page.wait_for_timeout(2000)
-                print('Opening https://substack.com/home again')
-                page.goto('https://substack.com/home')
-                try:
-                    page.wait_for_load_state(timeout=5000)
-                except:
-                    print('load state ignored')
-                page.wait_for_timeout(2000)
-                print("Reloading original page after signin carryover")
-                page.goto(url)
-                try:
-                    page.wait_for_load_state(timeout=2000)
-                except:
-                    print('load state ignored')
-                try:
-                    page.evaluate('location.reload()')
-                except:
-                    print('location.reload() failed')
-                try:
-                    page.wait_for_load_state(timeout=5000)
-                except:
-                    print('load state ignored')
-                page.wait_for_timeout(2000)
-                print("Looking for login session")
-                try:
-                    page.locator(_logged_in_locator).wait_for(timeout=3000)
-                    print("Logged in!")
-                except Exception as e2:
-                    pass
-                bell = page.evaluate('document.querySelector("svg.lucide-bell")')
-                if not bell:
-                    print('TIMED OUT: unable to ensure logged-in to', url, '\n - error:', e2)
-                    return None
-                else:
-                    print('FOUND!')
+            page.wait_for_timeout(2000)
+            
+            if not check_article_logged_in():
+                print('TIMED OUT: still seeing paywall on', url)
+                return None
+            else:
+                print('Paywall cleared!')
         page.wait_for_timeout(1000)
         page.emulate_media(media="print")
         page.wait_for_timeout(1000)
