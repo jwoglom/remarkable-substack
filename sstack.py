@@ -206,6 +206,8 @@ class Substack:
 
     def _download_pdf(self, url, output_file, headless=True, slow_mo=0, relogin_command=None, retry=0):
         print('Opening playwright:', url)
+
+        _logged_in_locator = 'svg.lucide-bell, a[href*=sign-out]'
         
         if self.cookies:
             print(f'adding {len(self.cookies)} cookies')
@@ -220,9 +222,9 @@ class Substack:
         page.wait_for_timeout(5000)
         print('Opened https://substack.com/home')
         try:
-            page.locator('svg.lucide-plus').wait_for(timeout=1000)
+            page.locator(_logged_in_locator).wait_for(timeout=1000)
         except Exception as e:
-            print('Unable to ensure logged-in on substack homepage (no lucide-plus icon), you need to relogin', e)
+            print('Unable to ensure logged-in on substack homepage (no icon), you need to relogin', e)
             return None
         print('Found logged-in session on substack.com')
 
@@ -233,7 +235,7 @@ class Substack:
             print('load state ignored')
         print('Ensuring logged-in session carries to article details')
         try:
-            page.locator('svg.lucide-bell').wait_for(timeout=2000)
+            page.locator(_logged_in_locator).wait_for(timeout=2000)
         except Exception as e:
             print('try 1: unable to ensure logged-in to', url, '\n - error:', e)
             try:
@@ -271,7 +273,7 @@ class Substack:
             page.wait_for_timeout(1000)
             print("Looking for login session")
             try:
-                page.locator('svg.lucide-bell').wait_for(timeout=2000)
+                page.locator(_logged_in_locator).wait_for(timeout=2000)
                 print("Logged in!")
             except Exception as e:
                 print('try 2: unable to ensure logged-in to', url, '\n - error:', e)
@@ -316,7 +318,7 @@ class Substack:
                 page.wait_for_timeout(2000)
                 print("Looking for login session")
                 try:
-                    page.locator('svg.lucide-bell').wait_for(timeout=3000)
+                    page.locator(_logged_in_locator).wait_for(timeout=3000)
                     print("Logged in!")
                 except Exception as e2:
                     pass
