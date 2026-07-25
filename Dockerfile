@@ -9,11 +9,16 @@ ENV LC_ALL C.UTF-8
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONFAULTHANDLER 1
 
-FROM node:22-bookworm-slim AS rmapi
+FROM node:24-bookworm-slim AS rmapi
 
 # rmapi-js replaces the ddvk/rmapi Go binary. Installed from the GitHub release
 # tarball: a packed tarball runs no lifecycle scripts, so this needs no bun, no
 # devDependencies, no git and no typecheck. --ignore-scripts belts-and-braces.
+#
+# node 24, not the 22 that rmapi-js's `engines` allows: v12.0.0 calls
+# Uint8Array#toHex and #toBase64 on its write paths, which only exist in bun and
+# node 24+. On node 22 reads work and every upload dies with
+# "toHex is not a function".
 ARG RMAPI_JS_VERSION=12.0.0
 RUN npm install --prefix /opt/rmapi --ignore-scripts \
     "https://github.com/jwoglom/rmapi-js/releases/download/v${RMAPI_JS_VERSION}/jwoglom-rmapi-js-${RMAPI_JS_VERSION}.tgz"
