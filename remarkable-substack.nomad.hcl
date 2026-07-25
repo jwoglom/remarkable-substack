@@ -41,7 +41,7 @@ job "remarkable-substack" {
                 args = [
                     "-c",
                     <<EOF
-                    ln -s /rmapi_config/rmapi /home/appuser/.rmapi
+                    export RMAPI_CONFIG_DIR=/rmapi_config/rmapi-js
                     python3 -u main.py --config-folder=/config --tmp-folder=$NOMAD_ALLOC_DIR --max-save-count=20 --delete-already-read
                     EOF
                 ]

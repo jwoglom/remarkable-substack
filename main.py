@@ -8,7 +8,7 @@ import pypdf
 import time
 import subprocess
 
-from remarkable import Remarkable
+from remarkable import Remarkable, RemarkableAuthError, REGISTER_URL
 from sstack import Substack
 from playwright_stealth import Stealth
 from playwright.sync_api import sync_playwright
@@ -22,7 +22,8 @@ def parse_args():
     a.add_argument('--delete-already-read', action='store_true', help='Delete articles in reMarkable cloud which are already read')
     a.add_argument('--delete-unread-after-hours', type=int, default=48, help='If an article has not been opened for this many hours on the device and there are new articles to add, will delete. Set to -1 to disable, or 0 to always replace old articles.')
     a.add_argument('--folder', default='Substack', help='Folder title to write to')
-    a.add_argument('--remarkable-auth-token', help='For initial authentication with reMarkable: device token')
+    a.add_argument('--remarkable-auth-token',
+                   help='For initial authentication with reMarkable: the 8-letter code from %s' % REGISTER_URL)
     a.add_argument('--substack-login-url', help='For initial authentication with Substack: the URL from the email received from Substack when entering your email on the login page')
     a.add_argument('--config-folder', help='Configuration folder for remarkable-substack')
     a.add_argument('--tmp-folder', help='Temporary storage folder for remarkable-substack')
@@ -45,18 +46,22 @@ def main(args):
     try:
         rm = Remarkable()
         rm.auth_if_needed(args.remarkable_auth_token)
+        # auth_if_needed only checks that a token exists; confirm it still works
+        # so a revoked token notifies now rather than failing mid-upload.
+        rm.verify_auth()
+    except RemarkableAuthError as e:
+        print(f'Authentication failed: {e}')
+        if args.remarkable_relogin_command:
+            subprocess.run(['/bin/bash', '-c', args.remarkable_relogin_command])
+        raise
     except Exception as e:
         if args.remarkable_relogin_command:
             subprocess.run(['/bin/bash', '-c', args.remarkable_relogin_command])
         raise e
 
-    if not rm.is_auth():
-        if args.remarkable_relogin_command:
-            subprocess.run(['/bin/bash', '-c', args.remarkable_relogin_command])
-
     ls = []
     try:
-        ls = rm.ls(args.folder)
+        ls = rm.documents(args.folder)
     except FileNotFoundError:
         rm.mkdir(args.folder)
         ls = []
@@ -67,7 +72,7 @@ def main(args):
             os.makedirs(args.config_folder)
         print(f'Set --config-folder to {args.config_folder}')
     
-    print(f'Existing files in {args.folder}: {ls}')
+    print(f'Existing files in {args.folder}: {[e["visibleName"] for e in ls]}')
     
     db_file = os.path.join(args.config_folder, 'db_file.json')
     already_downloaded_ids = set()
@@ -78,26 +83,32 @@ def main(args):
     already_downloaded_ids = list(article_data.keys())
 
     existing_ids = set()
+    # reMarkable ids seen in args.folder; deletes are constrained to these
+    existing_rm_ids = {e['id'] for e in ls}
     files_to_delete = set()
     delete_if_needed = {}
     now_ts = time.time()
-    for file in ls:
+    for entry in ls:
+        file = entry['visibleName']
         id = parse_filename(file)
         if id:
             existing_ids.add(id)
             if id in article_data:
                 added_ts = article_data.get(id)['added']
                 num_pages = article_data.get(id)['num_pages']
-                stat = rm.stat(f'{args.folder}/{file}')
-                print(f"Check: {file} is on page {1+stat['CurrentPage']} of {num_pages} total")
-                if args.delete_already_read and 1 + stat['CurrentPage'] == num_pages:
+                # None means never opened; rmapi-js omits lastOpenedPage in that
+                # case rather than reporting page 0 like the Go client did.
+                page = rm.current_page(entry['id'])
+                current_page = 0 if page is None else page
+                print(f"Check: {file} is on page {1+current_page} of {num_pages} total")
+                if args.delete_already_read and page is not None and 1 + page == num_pages:
                     print(f"Will delete {file} since already read")
-                    files_to_delete.add(f'{args.folder}/{file}')
+                    files_to_delete.add((entry['id'], file))
                 else:
                     unread_hrs = (now_ts - added_ts) / 60 / 60
                     if args.delete_unread_after_hours >= 0 and unread_hrs >= args.delete_unread_after_hours:
                         print(f"Article not opened after {unread_hrs} hrs, will delete if needed: {file}")
-                        delete_if_needed[id] = f'{args.folder}/{file}'
+                        delete_if_needed[id] = (entry['id'], file)
     
     print(f'{existing_ids=}')
     print(f'{delete_if_needed.keys()=}')
@@ -106,18 +117,18 @@ def main(args):
 
         if len(files_to_delete) > 0:
             print('Deleting old files')
-            for path in files_to_delete:
-                print(f'Deleting {path}')
-                assert path.startswith(f'{args.folder}/')
-                assert '../' not in path
-                assert '/..' not in path
-                assert len(path) > 2 + len(args.folder)
-                rm.rm(path)
+            for rm_id, name in files_to_delete:
+                print(f'Deleting {name} ({rm_id})')
+                # Deleting by id rather than by path. The guard that replaces the
+                # old path asserts: the id has to have come from the listing of
+                # --folder, so nothing outside that folder is reachable.
+                assert rm_id in existing_rm_ids
+                rm.rm(f'id:{rm_id}')
 
-                id = parse_filename(path)
+                id = parse_filename(name)
                 if id and id in article_data:
                     article_data[id]['deleted'] = now_ts
-            files_to_delete = []
+            files_to_delete = set()
 
 
     with Stealth().use_sync(sync_playwright()) as p:
@@ -231,15 +242,12 @@ def main(args):
 
         if args.delete_already_read and len(files_to_delete) > 0:
             print('Deleting old files')
-            for path in files_to_delete:
-                print(f'Deleting {path}')
-                assert path.startswith(f'{args.folder}/')
-                assert '../' not in path
-                assert '/..' not in path
-                assert len(path) > 2 + len(args.folder)
-                rm.rm(path)
+            for rm_id, name in files_to_delete:
+                print(f'Deleting {name} ({rm_id})')
+                assert rm_id in existing_rm_ids
+                rm.rm(f'id:{rm_id}')
 
-                id = parse_filename(path)
+                id = parse_filename(name)
                 if id and id in article_data:
                     article_data[id]['deleted'] = now_ts
         
