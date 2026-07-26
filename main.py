@@ -216,8 +216,21 @@ def main(args):
         dir = tempfile.gettempdir()
         if args.tmp_folder:
             dir = args.tmp_folder
-        to_upload = []
+
+        # consecutive pages overlap, so the same post arrives several times and
+        # would otherwise be downloaded and uploaded once per appearance
+        seen_post_ids = set()
+        unique_posts = []
         for post in all_posts:
+            if str(post['id']) in seen_post_ids:
+                continue
+            seen_post_ids.add(str(post['id']))
+            unique_posts.append(post)
+        if len(unique_posts) != len(all_posts):
+            print(f'Deduplicated {len(all_posts)} fetched posts to {len(unique_posts)}')
+
+        to_upload = []
+        for post in unique_posts:
             id = str(post['id'])
             if id in new_ids:
                 output_file = os.path.join(dir, to_filename(post))
