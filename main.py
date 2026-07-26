@@ -154,7 +154,9 @@ def main(args):
             publications[pub['id']] = pub['name']
 
         def to_filename(post):
-            pub_name = publications[post['publication_id']]
+            # fall back to the id so an unknown publication cannot abort the run;
+            # existing files are matched on the bracketed post id, not this name
+            pub_name = publications.get(post['publication_id'], str(post['publication_id']))
             title = post['title']
             return f"{pub_name} - {title} [{id}].pdf"
 
@@ -167,6 +169,12 @@ def main(args):
         while len(fetched_ids) < args.max_fetch_count:
             print(f'get_posts(after={after})')
             posts = ss.get_posts(limit=20, after=after)
+
+            # the inbox carries posts from publications that are not in the
+            # subscription list, and names them in its own publications block.
+            # Subscription names win, as those are the canonical ones.
+            for pub in posts.get('publications', []):
+                publications.setdefault(pub['id'], pub['name'])
 
             for post in posts['posts']:
                 id = str(post['id'])
