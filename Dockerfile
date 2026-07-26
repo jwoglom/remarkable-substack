@@ -15,11 +15,8 @@ FROM node:24-bookworm-slim AS rmapi
 # tarball: a packed tarball runs no lifecycle scripts, so this needs no bun, no
 # devDependencies, no git and no typecheck. --ignore-scripts belts-and-braces.
 #
-# node 24, not the 22 that rmapi-js's `engines` allows: v12.0.0 calls
-# Uint8Array#toHex and #toBase64 on its write paths, which only exist in bun and
-# node 24+. On node 22 reads work and every upload dies with
-# "toHex is not a function".
-ARG RMAPI_JS_VERSION=12.0.0
+# >=12.0.1 is required: 12.0.0 breaks every upload with "toHex is not a function".
+ARG RMAPI_JS_VERSION=12.0.1
 RUN npm install --prefix /opt/rmapi --ignore-scripts \
     "https://github.com/jwoglom/rmapi-js/releases/download/v${RMAPI_JS_VERSION}/jwoglom-rmapi-js-${RMAPI_JS_VERSION}.tgz"
 
