@@ -100,13 +100,25 @@ class Substack:
                 'sameSite': c.get('sameSite'),
             }
 
+        j = [_to_json(c) for c in playwright_cookies]
+        self.cookies = j
+        self.load_cookies_into_session()
+
         if not self.cookie_file:
             return
         with open(self.cookie_file, 'w') as f:
-            j = [_to_json(c) for c in playwright_cookies]
             f.write(json.dumps(j, indent=4))
-            self.cookies = j
-    
+
+    def load_cookies_into_session(self):
+        """Copy self.cookies into the requests session used for the API calls.
+
+        The browser context and self.s keep separate cookie jars, so anything
+        that populates one has to populate the other or the API calls go out
+        unauthenticated and Substack answers 401.
+        """
+        for c in self.cookies or []:
+            self.s.cookies.set(c['name'], c['value'], domain=c['domain'])
+
     def read_cookies(self):
         if not self.cookie_file:
             return
@@ -114,8 +126,7 @@ class Substack:
             return
         with open(self.cookie_file, 'r') as f:
             self.cookies = json.load(f)
-            for c in self.cookies:
-                self.s.cookies.set(c['name'], c['value'], domain=c['domain'])
+        self.load_cookies_into_session()
 
 
 
@@ -169,7 +180,9 @@ class Substack:
             time.sleep(1)
 
     def get_subscriptions(self):
-        r = self.s.get(f'https://substack.com/api/v1/subscriptions')
+        # tvOnly is required; omitting it is a 400, and either value returns the
+        # full subscription list
+        r = self.s.get('https://substack.com/api/v1/subscriptions', params={'tvOnly': 'false'})
         if r.status_code//100 != 2:
             raise RuntimeError(f'{r.status_code}: {r.text}')
         return r.json()
