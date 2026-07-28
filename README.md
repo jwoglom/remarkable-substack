@@ -82,6 +82,9 @@ options:
                         Delete articles in reMarkable cloud which are already read
   --delete-unread-after-hours DELETE_UNREAD_AFTER_HOURS
                         If an article has not been opened for this many hours on the device and there are new articles to add, will delete. Set to -1 to disable, or 0 to always replace old articles.
+  --delete-unread-always
+                        Delete unread articles once they pass --delete-unread-after-hours, rather than only when a new article needs the space
+  --wipe-folder         One-time cleanup: delete every document in --folder before syncing, then refill with the latest articles
   --folder FOLDER       Folder title to write to
   --remarkable-auth-token REMARKABLE_AUTH_TOKEN
                         For initial authentication with reMarkable: the 8-letter code from
@@ -101,3 +104,6 @@ options:
 * Unlike the Go client, which reported page 0 both for "never opened" and for "opened to the first page", rmapi-js omits the field entirely when a document has never been opened. `--delete-already-read` will not delete a document with no recorded page.
 * Deletion moves documents to the reMarkable **trash**, which has to be emptied from a device or from my.remarkable.com.
 * Documents are deleted by id, resolved from a listing of `--folder`, so nothing outside that folder is reachable.
+* Without `--delete-unread-always`, an unread article past `--delete-unread-after-hours` is only a candidate: it is dropped when a newly fetched article needs its slot, and otherwise stays. With the flag, it is deleted on the first run after it expires whether or not there is anything to replace it.
+* Age is measured from when this tool downloaded the article, which is tracked in `db_file.json` in `--config-folder`. An article the db has no record of is never expired, so losing that file leaves existing documents on the device to be cleaned up by hand.
+* `--wipe-folder` empties `--folder` and clears `db_file.json`, so the same run re-downloads the newest `--max-save-count` articles from scratch. It is meant to be passed once, by hand, not left in a scheduled job.

@@ -21,6 +21,8 @@ def parse_args():
     a.add_argument('--max-fetch-count', type=int, default=20, help='Maximum number of articles to fetch from Substack')
     a.add_argument('--delete-already-read', action='store_true', help='Delete articles in reMarkable cloud which are already read')
     a.add_argument('--delete-unread-after-hours', type=int, default=48, help='If an article has not been opened for this many hours on the device and there are new articles to add, will delete. Set to -1 to disable, or 0 to always replace old articles.')
+    a.add_argument('--delete-unread-always', action='store_true', help='Delete unread articles once they pass --delete-unread-after-hours, rather than only when a new article needs the space')
+    a.add_argument('--wipe-folder', action='store_true', help='One-time cleanup: delete every document in --folder before syncing, then refill with the latest articles')
     a.add_argument('--folder', default='Substack', help='Folder title to write to')
     a.add_argument('--remarkable-auth-token',
                    help='For initial authentication with reMarkable: the 8-letter code from %s' % REGISTER_URL)
@@ -40,6 +42,21 @@ def parse_filename(fn):
     if match:
         return match.group(1)
     return None
+
+
+def delete_entries(rm, entries, existing_rm_ids, article_data, now_ts):
+    """Trash each (remarkable id, visibleName) pair and record it in the db."""
+    for rm_id, name in entries:
+        print(f'Deleting {name} ({rm_id})')
+        # Deleting by id rather than by path. The guard that replaces the
+        # old path asserts: the id has to have come from the listing of
+        # --folder, so nothing outside that folder is reachable.
+        assert rm_id in existing_rm_ids
+        rm.rm(f'id:{rm_id}')
+
+        id = parse_filename(name)
+        if id and id in article_data:
+            article_data[id]['deleted'] = now_ts
 
 
 def main(args):
@@ -86,8 +103,21 @@ def main(args):
     # reMarkable ids seen in args.folder; deletes are constrained to these
     existing_rm_ids = {e['id'] for e in ls}
     files_to_delete = set()
-    delete_if_needed = {}
     now_ts = time.time()
+
+    if args.wipe_folder:
+        print(f'--wipe-folder: deleting all {len(ls)} documents in {args.folder}')
+        delete_entries(rm, [(e['id'], e['visibleName']) for e in ls],
+                       existing_rm_ids, article_data, now_ts)
+        # The rest of the run treats the folder as empty. The db is reset too:
+        # without that, every recent post is "already downloaded" and the wiped
+        # folder would refill with only the handful of posts never seen before,
+        # rather than with the latest --max-save-count of them.
+        ls = []
+        article_data = {}
+        already_downloaded_ids = []
+
+    delete_if_needed = {}
     for entry in ls:
         file = entry['visibleName']
         id = parse_filename(file)
@@ -107,28 +137,26 @@ def main(args):
                 else:
                     unread_hrs = (now_ts - added_ts) / 60 / 60
                     if args.delete_unread_after_hours >= 0 and unread_hrs >= args.delete_unread_after_hours:
-                        print(f"Article not opened after {unread_hrs} hrs, will delete if needed: {file}")
-                        delete_if_needed[id] = (entry['id'], file)
+                        if args.delete_unread_always:
+                            print(f"Article not opened after {unread_hrs} hrs, will delete: {file}")
+                            files_to_delete.add((entry['id'], file))
+                        else:
+                            print(f"Article not opened after {unread_hrs} hrs, will delete if needed: {file}")
+                            delete_if_needed[id] = (entry['id'], file)
     
     print(f'{existing_ids=}')
     print(f'{delete_if_needed.keys()=}')
-    if args.delete_already_read:
-        print(f'{files_to_delete=}')
+    print(f'{files_to_delete=}')
 
-        if len(files_to_delete) > 0:
-            print('Deleting old files')
-            for rm_id, name in files_to_delete:
-                print(f'Deleting {name} ({rm_id})')
-                # Deleting by id rather than by path. The guard that replaces the
-                # old path asserts: the id has to have come from the listing of
-                # --folder, so nothing outside that folder is reachable.
-                assert rm_id in existing_rm_ids
-                rm.rm(f'id:{rm_id}')
-
-                id = parse_filename(name)
-                if id and id in article_data:
-                    article_data[id]['deleted'] = now_ts
-            files_to_delete = set()
+    # files_to_delete holds the already-read and the expired articles, both of
+    # which go now regardless of whether anything new turns up to replace them
+    if len(files_to_delete) > 0:
+        print('Deleting old files')
+        delete_entries(rm, files_to_delete, existing_rm_ids, article_data, now_ts)
+        # they no longer occupy a slot, so --max-save-count has room to refill
+        for _, name in files_to_delete:
+            existing_ids.discard(parse_filename(name))
+        files_to_delete = set()
 
 
     with Stealth().use_sync(sync_playwright()) as p:
@@ -261,17 +289,11 @@ def main(args):
         print('Upload complete')
 
 
-        if args.delete_already_read and len(files_to_delete) > 0:
+        if len(files_to_delete) > 0:
             print('Deleting old files')
-            for rm_id, name in files_to_delete:
-                print(f'Deleting {name} ({rm_id})')
-                assert rm_id in existing_rm_ids
-                rm.rm(f'id:{rm_id}')
+            delete_entries(rm, files_to_delete, existing_rm_ids, article_data, now_ts)
 
-                id = parse_filename(name)
-                if id and id in article_data:
-                    article_data[id]['deleted'] = now_ts
-        
+
         with open(db_file, 'w') as f:
             f.write(json.dumps(article_data))
 
